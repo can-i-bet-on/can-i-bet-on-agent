@@ -1,7 +1,8 @@
+from datetime import datetime, timedelta
 import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes
-# from web3 import Web3
+from web3 import Web3
 from dotenv import load_dotenv
 import urllib.parse
 
@@ -12,32 +13,50 @@ load_dotenv()
 
 # Environment variables
 HALLUCIBETRBOT_TOKEN = os.getenv('HALLUCIBETRBOT_TOKEN')
-ETHEREUM_NODE_URL = os.getenv('ETHEREUM_NODE_URL')
+WEB3_NODE_URL = os.getenv('WEB3_NODE_URL')
 CONTRACT_ADDRESS = os.getenv('CONTRACT_ADDRESS')
-URL_PREFIX = os.getenv('URL_PREFIX')  
+PRIVATE_KEY = os.getenv('PRIVATE_KEY')
+FRONTEND_URL_PREFIX = os.getenv('FRONTEND_URL_PREFIX')  
 
 # Command name variable
 GENERATE_BETTING_POOL_COMMAND = "generate_betting_pool_idea"
 
 # Initialize Web3
-# w3 = Web3(Web3.HTTPProvider(ETHEREUM_NODE_URL))
+w3 = Web3(Web3.HTTPProvider(WEB3_NODE_URL))
 
 # Example contract ABI - modify according to your contract
 CONTRACT_ABI = [
     {
-        "inputs": [],
-        "name": "getAddress",
-        "outputs": [{"type": "address", "name": ""}],
-        "stateMutability": "view",
+        "inputs": [{
+            "components": [
+                {"internalType": "string", "name": "question", "type": "string"},
+                {"internalType": "string[2]", "name": "options", "type": "string[2]"},
+                {"internalType": "uint40", "name": "betsCloseAt", "type": "uint40"},
+                {"internalType": "uint40", "name": "decisionDate", "type": "uint40"},
+                {"internalType": "string", "name": "imageUrl", "type": "string"},
+                {"internalType": "string", "name": "category", "type": "string"},
+                {"internalType": "string", "name": "creatorName", "type": "string"},
+                {"internalType": "string", "name": "creatorId", "type": "string"},
+                {"internalType": "string", "name": "closureCriteria", "type": "string"},
+                {"internalType": "string", "name": "closureInstructions", "type": "string"}
+            ],
+            "internalType": "struct PoolCreationParams",
+            "name": "params",
+            "type": "tuple"
+        }],
+        "name": "createPool",
+        "outputs": [],
+        "stateMutability": "nonpayable",
         "type": "function"
     }
 ]
 
 # Initialize contract
-# CONTRACT = w3.eth.contract(address=CONTRACT_ADDRESS, abi=CONTRACT_ABI)
+CONTRACT = w3.eth.contract(address=CONTRACT_ADDRESS, abi=CONTRACT_ABI)
 
-# Define states for conversation
-QUESTION, OPTIONS, BETS_CLOSE_AT, DECISION_DATE, IMAGE_URL, CATEGORY, CREATOR_NAME, CREATOR_ID, CLOSURE_CRITERIA, CLOSURE_INSTRUCTIONS = range(10)
+ACCOUNT = w3.eth.account.from_key(PRIVATE_KEY)
+# w3.eth.default_account = ACCOUNT
+
 
 def generate_twitter_intent_url(text):
     # Encode the tweet text for URL
@@ -75,33 +94,13 @@ async def call_langgraph_agent(user_prompt):
     except Exception as e:
         raise Exception(f"Error fetching data from Langraph: {str(e)}")
 
-def create_market(pool_data):
-    try:
-        # Call the createPool function on the contract
-        tx = CONTRACT.functions.createPool(
-            pool_data['question'],
-            pool_data['options'],
-            pool_data['betsCloseAt'],
-            pool_data['decisionDate'],
-            pool_data['imageUrl'],
-            pool_data['category'],
-            pool_data['creatorName'],
-            pool_data['creatorId'],
-            pool_data['closureCriteria'],
-            pool_data['closureInstructions']
-        ).transact({'from': w3.eth.default_account})
-
-        return tx.hex()
-    except Exception as e:
-        raise Exception(f"Error creating market: {str(e)}")
-
-async def share_market(update: Update, context: ContextTypes.DEFAULT_TYPE, tx_hash: str):
+async def share_pool(update: Update, context: ContextTypes.DEFAULT_TYPE, tx_hash: str):
     try:
         # Generate the full URL using the transaction hash
-        full_url = f"{URL_PREFIX}{tx_hash}"
+        full_url = f"{FRONTEND_URL_PREFIX}{tx_hash}"
         
         # Create tweet text
-        tweet_text = f"New market created! Check it out: {full_url}"
+        tweet_text = f"New pool created! Check it out: {full_url}"
         
         # Generate Twitter intent URL
         twitter_url = generate_twitter_intent_url(tweet_text)
@@ -112,29 +111,84 @@ async def share_market(update: Update, context: ContextTypes.DEFAULT_TYPE, tx_ha
         
         # Send message with button
         await update.message.reply_text(
-            f"Market created successfully!\nURL: {full_url}\n\nClick below to share on Twitter:",
+            f"Market pool created successfully!\nURL: {full_url}\n\nClick below to share on Twitter:",
             reply_markup=reply_markup
         )
         
     except Exception as e:
         await update.message.reply_text(f"Error occurred: {str(e)}")
 
+def create_pool(pool_data):
+    try:
+        # Call the createPool function on the contract
+        tx = CONTRACT.functions.createPool((
+            pool_data['question'],
+            pool_data['options'],
+            pool_data['betsCloseAt'],
+            pool_data['decisionDate'],
+            pool_data['imageUrl'],
+            pool_data['category'],
+            pool_data['creatorName'],
+            pool_data['creatorId'],
+            pool_data['closureCriteria'],
+            pool_data['closureInstructions']
+        # )).transact({'from': ACCOUNT.address})
+        )).build_transaction({
+            'from': ACCOUNT.address,  # Use the actual address from account
+            'nonce': w3.eth.get_transaction_count(ACCOUNT.address),
+            'gas': 3000000,
+            'gasPrice': w3.eth.gas_price
+        })
+        
+        # Sign and send the transaction
+        signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+        
+        return tx_hash.hex()
+
+    except Exception as e:
+        raise Exception(f"Error creating pool: {str(e)}")
+
 async def create_pool_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Generating betting idea...")
     
     # Extract additional message text
     user_prompt = update.message.text.replace(f'/{GENERATE_BETTING_POOL_COMMAND}', '').strip()
+    creator_name = update.message.from_user.username
+    creator_id = str(update.message.from_user.id)
+    bets_close_at = datetime.now() + timedelta(days=1)
     
     try:
         # Call the Langraph agent
-        pool_data = await call_langgraph_agent(user_prompt)
-        print(f"Pool data: {pool_data}")
-        
-        # Create the market and get the transaction hash
-        # tx_hash = create_market(pool_data)
+        langgraph_agent_response = await call_langgraph_agent(user_prompt)
+        print(f"langgraph_agent_response: {langgraph_agent_response}")
 
-        # Share the market using the transaction hash
-        await share_market(update, context, tx_hash)
+        betting_pool_data = langgraph_agent_response['betting_pool_idea']
+        decision_date = datetime.strptime(betting_pool_data['closure_date'], '%Y-%m-%dT%H:%M:%S')
+
+        pool_data = {
+            'question': betting_pool_data['betting_pool_idea'],
+            # Convert to binary choice
+            'options': [
+                betting_pool_data['options'][0],
+                betting_pool_data['options'][1],
+            ],
+            'betsCloseAt': int(bets_close_at.timestamp()),
+            'decisionDate': int(decision_date.timestamp()),
+            'imageUrl': langgraph_agent_response['image_results'][0]['url'] if langgraph_agent_response['image_results'] else "",
+            'category': betting_pool_data['category'],
+            'creatorName': creator_name,
+            'creatorId': creator_id,
+            'closureCriteria': betting_pool_data['closure_summary'],
+            'closureInstructions': betting_pool_data['closure_instructions']
+        }
+        
+        print(f"pool_data: {pool_data}")
+        # Create the pool and get the transaction hash
+        tx_hash = create_pool(pool_data)
+
+        # Share the pool using the transaction hash
+        await share_pool(update, context, tx_hash)
 
     except Exception as e:
         await update.message.reply_text(str(e))

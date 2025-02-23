@@ -23,6 +23,7 @@ class BettingPoolGeneratorOutput(BaseModel):
     options: list[str]
     closure_summary: str
     closure_instructions: str
+    category: str
     odds_format: str
     odds_type: str
     odds_value: str
@@ -293,6 +294,7 @@ def generate_betting_pool_idea(state: ResearchGraphOutput):
         "options": ["", "", ""], // List of options for the betting pool
         "closure_summary": "", // Single sentence summary of what date, condition, event, criteria, etc. that will determine a winner for this bet
         "closure_instructions": "", // Instructions for an LLM to follow to determine which option won
+        "category": "", // The category of the betting idea. It should be one of the following: ["Politics", "Sports", "Crypto", "Entertainment", "AI", "Unknown"]
         "closure_date": "", // Date and time that the bet will be closed if it applies. If it does apply, this date must be in the future both here and in the betting_pool_idea.
         "odds_format": "", // "decimal", "fractional", "american", idk what this is
         "odds_type": "", // "positive", "negative", idk what this is

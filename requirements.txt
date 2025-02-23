@@ -10,3 +10,4 @@ langchain-community
 langchain-openai
 langchain_anthropic
 pydantic
+web3
