@@ -1,0 +1,86 @@
+# Secrets
+.env
+.envrc
+
+# SQLite DBs
+*.db 
+*.db-shm
+*.db-wal
+
+# Static dumps of agent output for local debugging + avoiding rate limits when developing
+debug/*
+!debug/*.py
+
+
+# TODO remove me later, hand written prompts for AI chatbots, removing for right now to avoid noise
+prompts/*
+
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+.env
+.venv/
+ENV/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Local development settings
+*.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Database
+*.db
+*.sqlite3
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# pytest
+.pytest_cache/
+
+# mypy
+.mypy_cache/
+
+# Misc
+.DS_Store
+
+# Cookies
+cookies/
+# LangGraph
+.langgraph/
+.langgraph_cache/
+langgraph.db
+langgraph-dev/
+langgraph-*.log
+.langgraph_api/
+
+
