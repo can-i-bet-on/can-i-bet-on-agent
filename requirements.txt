@@ -1,2 +1,12 @@
 python-telegram-bot==21.10
 python-dotenv>=1.0.0
+langgraph
+langgraph-sdk
+langgraph-cli
+langgraph-checkpoint-sqlite
+langsmith
+langchain-core
+langchain-community
+langchain-openai
+langchain_anthropic
+pydantic

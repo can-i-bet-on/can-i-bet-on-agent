@@ -5,6 +5,8 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from dotenv import load_dotenv
 import urllib.parse
 
+from betting_pool_generator import betting_pool_idea_generator_agent
+
 # Load environment variables
 load_dotenv()
 
@@ -13,7 +15,6 @@ HALLUCIBETRBOT_TOKEN = os.getenv('HALLUCIBETRBOT_TOKEN')
 ETHEREUM_NODE_URL = os.getenv('ETHEREUM_NODE_URL')
 CONTRACT_ADDRESS = os.getenv('CONTRACT_ADDRESS')
 URL_PREFIX = os.getenv('URL_PREFIX')  
-LANGRAPH_ENDPOINT = os.getenv('LANGRAPH_ENDPOINT')  # Add this for the Langraph endpoint
 
 # Command name variable
 GENERATE_BETTING_POOL_COMMAND = "generate_betting_pool_idea"
@@ -43,16 +44,35 @@ def generate_twitter_intent_url(text):
     encoded_text = urllib.parse.quote(text)
     return f"https://twitter.com/intent/tweet?text={encoded_text}"
 
-def call_langraph_agent(additional_text):
-    # Prepare data to send to Langraph
-    data = {'additional_text': additional_text} if additional_text else {}
+async def call_langgraph_agent(user_prompt):
+    # Initialize the Langraph client and remote graph
+    betting_pool_idea_generator_agent
+    
+    message = {"role": "user", "content": "Generate a betting pool for me"}
+    if user_prompt:
+        message["content"] = user_prompt
 
-    # Call the Langraph endpoint
+    # Call the Langraph endpoint asynchronously
     try:
-        response = requests.post(LANGRAPH_ENDPOINT, json=data)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
+        # response_data = []
+        # async for chunk in remote_graph.astream(
+        #     {
+        #         "messages": messages,
+        #         "prefer_fast_response": True,
+        #     }
+        # ):
+        #     response_data.append(chunk)
+        #     print(chunk)  # You can remove this print statement if not needed
+
+        agent_response = betting_pool_idea_generator_agent.invoke(
+            {
+                "messages": [message],
+                "prefer_fast_response": True,
+            }   
+        )
+
+        return agent_response
+    except Exception as e:
         raise Exception(f"Error fetching data from Langraph: {str(e)}")
 
 def create_market(pool_data):
@@ -107,11 +127,12 @@ async def create_pool_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         # Call the Langraph agent
-        # pool_data = call_langraph_agent(user_prompt)
+        pool_data = await call_langgraph_agent(user_prompt)
+        print(f"Pool data: {pool_data}")
         
         # Create the market and get the transaction hash
         # tx_hash = create_market(pool_data)
-        tx_hash = "0x1234567890123456789012345678901234567890"
+
         # Share the market using the transaction hash
         await share_market(update, context, tx_hash)
 
