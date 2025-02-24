@@ -3,6 +3,7 @@ from web3 import Web3
 import os
 import urllib.parse
 from dotenv import load_dotenv
+from twitter_post import post_tweet_using_redis_token
 
 # Load environment variables
 load_dotenv()
@@ -115,6 +116,10 @@ def generate_tweet_content(pool_id_hex, frontend_url_prefix):
     if pool_id_hex:
         full_url = f"{frontend_url_prefix}{pool_id_hex}"
         tweet_text = f"New pool created! Check it out: {full_url}"
+        
+        # Post the tweet using the existing method
+        post_tweet_using_redis_token(tweet_text)
+        
         return tweet_text
     else:
         return None
