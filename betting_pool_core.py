@@ -42,6 +42,16 @@ CONTRACT_ABI = [
         "stateMutability": "nonpayable",
         "type": "function"
     },
+    {
+        "inputs": [
+            {"internalType": "uint256", "name": "poolId", "type": "uint256"},
+            {"internalType": "string", "name": "twitterPostId", "type": "string"}
+        ],
+        "name": "setTwitterPostId",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
 ]
 
 # Initialize contract
@@ -74,7 +84,7 @@ async def call_langraph_agent(agent, message_text=None, reply_text=None):
         raise Exception(f"Error fetching data from Langraph: {str(e)}")
 
 def create_pool(pool_data):
-    pool_id_hex = None
+    pool_id = None
     try:
         tx = CONTRACT.functions.createPool((
             pool_data['question'],
@@ -97,28 +107,32 @@ def create_pool(pool_data):
         signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
         tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
         receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+        print(f"Pool successfully created. Transaction hash: {tx_hash.hex()}, Transaction receipt: {receipt}")
 
         if receipt['logs']:
             data = receipt['logs'][0]['data']
             pool_id = int.from_bytes(data[:32], byteorder='big')
-            pool_id_hex = hex(pool_id)
 
-            print(f"Pool created with ID: {pool_id_hex}")
+            print(f"Pool created with ID: {pool_id}")
         else:
             print("No logs found in receipt")
 
-        return pool_id_hex
+        return pool_id
 
     except Exception as e:
         raise Exception(f"Error creating pool: {str(e)}")
 
-def generate_tweet_content(pool_id_hex, frontend_url_prefix):
-    if pool_id_hex:
+def generate_tweet_content(pool_id, frontend_url_prefix):
+    if pool_id is not None:
+        pool_id_hex = hex(pool_id)
         full_url = f"{frontend_url_prefix}{pool_id_hex}"
         tweet_text = f"New pool created! Check it out: {full_url}"
         
         # Post the tweet using the existing method
-        post_tweet_using_redis_token(tweet_text)
+        tweet_id = post_tweet_using_redis_token(tweet_text)
+        
+        # Set the Twitter post ID in the contract
+        set_twitter_post_id(pool_id, tweet_id)
         
         return tweet_text
     else:
@@ -149,3 +163,30 @@ def create_pool_data(langgraph_agent_response, creator_name, creator_id):
     print(f"Pool data: {pool_data}")
     
     return pool_data 
+
+def set_twitter_post_id(pool_id, tweet_id):
+    try:
+        # Build the transaction
+        tx = CONTRACT.functions.setTwitterPostId(
+            pool_id,
+            tweet_id
+        ).build_transaction({
+            'from': ACCOUNT.address,
+            'nonce': w3.eth.get_transaction_count(ACCOUNT.address),
+            'gas': GAS_LIMIT,
+            'gasPrice': w3.eth.gas_price
+        })
+
+        # Sign the transaction
+        signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+
+        # Send the transaction
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+
+        # Wait for the transaction receipt
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+
+        print(f"Setting twitter transaction successful with hash: {tx_hash.hex()}, receipt: {receipt}")
+        return receipt
+    except Exception as e:
+        raise Exception(f"Error setting Twitter post ID: {str(e)}")

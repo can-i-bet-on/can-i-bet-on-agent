@@ -94,6 +94,8 @@ def post_tweet_using_redis_token(tweet_text):
         # Post the tweet using the existing method
         result = post_tweet(access_token, tweet_text)
         print(f"Successfully posted tweet! Tweet ID: {result['data']['id']}")
+
+        return result['data']['id']
         
     except Exception as e:
         print(f"Error posting tweet: {str(e)}")
