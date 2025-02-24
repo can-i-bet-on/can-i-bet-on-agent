@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from web3 import Web3
 import os
 import urllib.parse
@@ -117,4 +117,30 @@ def generate_tweet_content(pool_id_hex, frontend_url_prefix):
         tweet_text = f"New pool created! Check it out: {full_url}"
         return tweet_text
     else:
-        return None 
+        return None
+
+def create_pool_data(langgraph_agent_response, creator_name, creator_id):
+    betting_pool_data = langgraph_agent_response['betting_pool_idea']
+    decision_date = datetime.strptime(betting_pool_data['closure_date'], '%Y-%m-%dT%H:%M:%S')
+
+    # Set bets_close_at to one day before the decision_date
+    bets_close_at = datetime.now() + timedelta(days=1)
+    if bets_close_at > decision_date:
+        bets_close_at = decision_date - timedelta(seconds=5)
+
+    pool_data = {
+        'question': betting_pool_data['betting_pool_idea'],
+        'options': [betting_pool_data['options'][0], betting_pool_data['options'][1]],
+        'betsCloseAt': int(bets_close_at.timestamp()),
+        'decisionDate': int(decision_date.timestamp()),
+        'imageUrl': langgraph_agent_response['image_results'][0]['url'] if langgraph_agent_response['image_results'] else "",
+        'category': betting_pool_data['category'],
+        'creatorName': creator_name,
+        'creatorId': creator_id,
+        'closureCriteria': betting_pool_data['closure_summary'],
+        'closureInstructions': betting_pool_data['closure_instructions']
+    }
+
+    print(f"Pool data: {pool_data}")
+    
+    return pool_data 

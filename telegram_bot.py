@@ -3,7 +3,7 @@ import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes
 from dotenv import load_dotenv
-from betting_pool_core import call_langraph_agent, create_pool, generate_tweet_content, generate_twitter_intent_url
+from betting_pool_core import call_langraph_agent, create_pool, generate_tweet_content, generate_twitter_intent_url, create_pool_data
 from betting_pool_generator import betting_pool_idea_generator_agent
 
 # Load environment variables
@@ -38,25 +38,12 @@ async def create_pool_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_text = update.message.reply_to_message.text if update.message.reply_to_message else None
     creator_name = update.message.from_user.username
     creator_id = str(update.message.from_user.id)
-    bets_close_at = datetime.now() + timedelta(days=1)
     
     try:
         langgraph_agent_response = await call_langraph_agent(betting_pool_idea_generator_agent, message_text, reply_text)
-        betting_pool_data = langgraph_agent_response['betting_pool_idea']
-        decision_date = datetime.strptime(betting_pool_data['closure_date'], '%Y-%m-%dT%H:%M:%S')
-
-        pool_data = {
-            'question': betting_pool_data['betting_pool_idea'],
-            'options': [betting_pool_data['options'][0], betting_pool_data['options'][1]],
-            'betsCloseAt': int(bets_close_at.timestamp()),
-            'decisionDate': int(decision_date.timestamp()),
-            'imageUrl': langgraph_agent_response['image_results'][0]['url'] if langgraph_agent_response['image_results'] else "",
-            'category': betting_pool_data['category'],
-            'creatorName': creator_name,
-            'creatorId': creator_id,
-            'closureCriteria': betting_pool_data['closure_summary'],
-            'closureInstructions': betting_pool_data['closure_instructions']
-        }
+        
+        # Use the new function to create pool_data
+        pool_data = create_pool_data(langgraph_agent_response, creator_name, creator_id)
         
         pool_id_hex = create_pool(pool_data)
         await share_pool(update, context, pool_id_hex)
