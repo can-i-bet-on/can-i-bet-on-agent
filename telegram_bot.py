@@ -19,7 +19,8 @@ PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 FRONTEND_URL_PREFIX = os.getenv('FRONTEND_URL_PREFIX')  
 
 GAS_LIMIT = os.getenv('GAS_LIMIT', 3000000)
-GENERATE_BETTING_POOL_COMMAND = "generate_betting_pool_idea"
+LOCAL_DEV_IDENTIFIER=os.getenv('LOCAL_DEV_IDENTIFIER', "")
+GENERATE_BETTING_POOL_COMMAND = f"generate_betting_pool_idea{LOCAL_DEV_IDENTIFIER}"
 
 # Initialize Web3
 w3 = Web3(Web3.HTTPProvider(WEB3_NODE_URL))
