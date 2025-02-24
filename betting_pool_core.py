@@ -122,15 +122,25 @@ def create_pool(pool_data):
     except Exception as e:
         raise Exception(f"Error creating pool: {str(e)}")
 
-def generate_tweet_content(pool_id, frontend_url_prefix):
+def generate_tweet_content(pool_id, pool_data, frontend_url_prefix):
     if pool_id is not None:
         pool_id_hex = hex(pool_id)
         full_url = f"{frontend_url_prefix}{pool_id_hex}"
-        tweet_text = f"New pool created! Check it out: {full_url}"
+        
+        # Format the tweet using the passed pool_data
+        tweet_text = (
+            f"🎲 New Prediction Pool!\n\n"
+            f"Q: {pool_data['question']}\n"
+            f"A) {pool_data['options'][0]}\n"
+            f"B) {pool_data['options'][1]}\n\n"
+            f"Place your bets: {full_url}"
+        )
         
         # Post the tweet using the existing method
         tweet_id = post_tweet_using_redis_token(tweet_text)
-        
+        if tweet_id is None:
+            return None
+
         # Set the Twitter post ID in the contract
         set_twitter_post_id(pool_id, tweet_id)
         
