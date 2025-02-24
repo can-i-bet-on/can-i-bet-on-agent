@@ -3,7 +3,7 @@ import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes
 from dotenv import load_dotenv
-from betting_pool_core import call_langraph_agent, create_pool, generate_tweet_content, generate_twitter_intent_url, create_pool_data
+from betting_pool_core import call_langgraph_agent, create_pool, generate_tweet_content, generate_twitter_intent_url, create_pool_data
 from betting_pool_generator import betting_pool_idea_generator_agent
 
 # Load environment variables
@@ -40,7 +40,7 @@ async def create_pool_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     creator_id = str(update.message.from_user.id)
     
     try:
-        langgraph_agent_response = await call_langraph_agent(betting_pool_idea_generator_agent, message_text, reply_text)
+        langgraph_agent_response = await call_langgraph_agent(betting_pool_idea_generator_agent, message_text, reply_text)
         
         # Use the new function to create pool_data
         pool_data = create_pool_data(langgraph_agent_response, creator_name, creator_id)

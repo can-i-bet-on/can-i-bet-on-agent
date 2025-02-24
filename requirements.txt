@@ -12,3 +12,4 @@ langchain_anthropic
 pydantic
 web3
 tweepy
+redis

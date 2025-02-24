@@ -1,13 +1,13 @@
 import os
 import time
-import tweepy
 import requests
 import asyncio
 from dotenv import load_dotenv
 from datetime import timezone, datetime
 import dataclasses
 from api.twitterapi.tweets import Tweet
-from api.langgraph.agent import call_langgraph_agent
+from betting_pool_core import call_langgraph_agent
+from betting_pool_generator import betting_pool_idea_generator_agent
 
 # Load environment variables
 load_dotenv()
@@ -72,7 +72,9 @@ async def poll_tweet_mentions():
     if tweets is None:
         print("Failed to fetch tweets, will retry in next polling interval")
         return
-        
+    if tweets == []:
+        print("No tweets found, will retry in next polling interval")
+        return
     bets = [propose_bet(tweet_data) for tweet_data in tweets]
     return asyncio.gather(*bets)
 
@@ -81,7 +83,7 @@ async def propose_bet(tweet_data: Tweet):
     print(f"Proposing bet for new tweet from @{tweet_data.author.user_name}: {tweet_data.text}")
     try:
         # Call the Langraph agent
-        langgraph_agent_response = await call_langgraph_agent(tweet_data.text, "")
+        langgraph_agent_response = await call_langgraph_agent(betting_pool_idea_generator_agent, tweet_data.text, "")
         print(f"langgraph_agent_response: {langgraph_agent_response}")
         return langgraph_agent_response
     except Exception as e:
