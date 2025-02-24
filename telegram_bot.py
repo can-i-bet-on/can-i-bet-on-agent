@@ -15,9 +15,9 @@ FRONTEND_URL_PREFIX = os.getenv('FRONTEND_URL_PREFIX')
 LOCAL_DEV_IDENTIFIER=os.getenv('LOCAL_DEV_IDENTIFIER', "")
 GENERATE_BETTING_POOL_COMMAND = f"generate_betting_pool_idea{LOCAL_DEV_IDENTIFIER}"
 
-async def share_pool(update: Update, context: ContextTypes.DEFAULT_TYPE, pool_id_hex: str, pool_data: dict):
+async def share_pool(update: Update, context: ContextTypes.DEFAULT_TYPE, pool_id: str, pool_data: dict):
     try:
-        tweet_text = generate_tweet_content(pool_id_hex, pool_data, FRONTEND_URL_PREFIX)
+        tweet_text = generate_tweet_content(pool_id, pool_data, FRONTEND_URL_PREFIX)
         
         if tweet_text:
             twitter_url = generate_twitter_intent_url(tweet_text)
@@ -45,8 +45,8 @@ async def create_pool_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Use the new function to create pool_data
         pool_data = create_pool_data(langgraph_agent_response, creator_name, creator_id)
         
-        pool_id_hex = create_pool(pool_data)
-        await share_pool(update, context, pool_id_hex, pool_data)
+        pool_id = create_pool(pool_data)
+        await share_pool(update, context, pool_id, pool_data)
 
     except Exception as e:
         await update.message.reply_text(str(e))
