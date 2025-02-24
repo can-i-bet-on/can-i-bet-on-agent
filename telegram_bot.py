@@ -18,7 +18,7 @@ CONTRACT_ADDRESS = os.getenv('CONTRACT_ADDRESS')
 PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 FRONTEND_URL_PREFIX = os.getenv('FRONTEND_URL_PREFIX')  
 
-# Command name variable
+GAS_LIMIT = os.getenv('GAS_LIMIT', 3000000)
 GENERATE_BETTING_POOL_COMMAND = "generate_betting_pool_idea"
 
 # Initialize Web3
@@ -48,6 +48,33 @@ CONTRACT_ABI = [
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
+    },
+
+    # PoolCreated event
+    {
+        "anonymous": False,
+        "inputs": [
+            {"indexed": True, "internalType": "uint256", "name": "poolId", "type": "uint256"},
+            {"indexed": True, "internalType": "string", "name": "creatorId", "type": "string"},
+            {
+                "components": [
+                    {"internalType": "string", "name": "question", "type": "string"},
+                    {"internalType": "string[2]", "name": "options", "type": "string[2]"},
+                    {"internalType": "uint40", "name": "betsCloseAt", "type": "uint40"},
+                    {"internalType": "uint40", "name": "decisionDate", "type": "uint40"},
+                    {"internalType": "string", "name": "imageUrl", "type": "string"},
+                    {"internalType": "string", "name": "category", "type": "string"},
+                    {"internalType": "string", "name": "creatorName", "type": "string"},
+                    {"internalType": "string", "name": "closureCriteria", "type": "string"},
+                    {"internalType": "string", "name": "closureInstructions", "type": "string"}
+                ],
+                "internalType": "struct PoolCreatedEvent",
+                "name": "poolDetails",
+                "type": "tuple"
+            }
+        ],
+        "name": "PoolCreated",
+        "type": "event"
     }
 ]
 
@@ -94,10 +121,10 @@ async def call_langgraph_agent(user_prompt):
     except Exception as e:
         raise Exception(f"Error fetching data from Langraph: {str(e)}")
 
-async def share_pool(update: Update, context: ContextTypes.DEFAULT_TYPE, tx_hash: str):
+async def share_pool(update: Update, context: ContextTypes.DEFAULT_TYPE, pool_id_hex: str):
     try:
         # Generate the full URL using the transaction hash
-        full_url = f"{FRONTEND_URL_PREFIX}{tx_hash}"
+        full_url = f"{FRONTEND_URL_PREFIX}{pool_id_hex}"
         
         # Create tweet text
         tweet_text = f"New pool created! Check it out: {full_url}"
@@ -136,15 +163,43 @@ def create_pool(pool_data):
         )).build_transaction({
             'from': ACCOUNT.address,  # Use the actual address from account
             'nonce': w3.eth.get_transaction_count(ACCOUNT.address),
-            'gas': 3000000,
+            'gas': GAS_LIMIT,
             'gasPrice': w3.eth.gas_price
         })
         
         # Sign and send the transaction
         signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+        print(f"signed_tx: {signed_tx}")
         tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+
+        print(f"tx_hash: {tx_hash}")
+
+        # Wait for transaction receipt
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+        print(f"receipt: {receipt}")
+
+        # pool_created_events = CONTRACT.events.PoolCreated().process_receipt(receipt)
+        # print(f"pool_created_events: {pool_created_events}")
+
+        # pool_created_event = pool_created_events[0]
+        # print(f"pool_created_event: {pool_created_event}")
+        # pool_id = pool_created_event['args']['poolId']  # or pool_created_event.args.poolId
+        # print(f"pool_id: {pool_id}")
+
+        # The logs contain the event data
+        print(f"Receipt logs: {receipt['logs']}")
         
-        return tx_hash.hex()
+        # The first log should contain our event
+        # poolId should be in topics[1] since it's the first indexed parameter
+        data = receipt['logs'][0]['data']
+        pool_id = int.from_bytes(data[:32], byteorder='big')
+        print(f"pool_id: {pool_id}")
+
+        # Convert pool_id to hexadecimal string
+        pool_id_hex = hex(pool_id)
+        print(f"pool_id_hex: {pool_id_hex}")
+
+        return pool_id_hex
 
     except Exception as e:
         raise Exception(f"Error creating pool: {str(e)}")
@@ -185,10 +240,10 @@ async def create_pool_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         print(f"pool_data: {pool_data}")
         # Create the pool and get the transaction hash
-        tx_hash = create_pool(pool_data)
+        pool_id_hex = create_pool(pool_data)
 
         # Share the pool using the transaction hash
-        await share_pool(update, context, tx_hash)
+        await share_pool(update, context, pool_id_hex)
 
     except Exception as e:
         await update.message.reply_text(str(e))
