@@ -72,6 +72,43 @@ big_llm = ChatOpenAI(
 #     temperature=0,
 # )
 
+async def call_langgraph_agent(message_text=None, reply_text=None):
+    # Initialize the Langraph client and remote graph
+    betting_pool_idea_generator_agent
+    
+    message = {
+        "role": "user", 
+        "content": "Generate a betting pool for me."
+    }
+    if message_text:
+        message["content"] = f"message['content']\n<text>{message_text}</text>"
+    if reply_text:
+        message["content"] = f"message['content']\n<reply_text>{reply_text}</reply_text>"
+    
+    print(f"message: {message}")
+
+    # Call the Langraph endpoint asynchronously
+    try:
+        # response_data = []
+        # async for chunk in remote_graph.astream(
+        #     {
+        #         "messages": messages,
+        #         "prefer_fast_response": True,
+        #     }
+        # ):
+        #     response_data.append(chunk)
+        #     print(chunk)  # You can remove this print statement if not needed
+
+        agent_response = betting_pool_idea_generator_agent.invoke(
+            {
+                "messages": [message],
+                "prefer_fast_response": True,
+            }   
+        )
+
+        return agent_response
+    except Exception as e:
+        raise Exception(f"Error fetching data from Langraph: {str(e)}")
 
 # TODO wire this up
 def generate_betting_pool_idea_from_seed(state: ResearchGraphOutput):
@@ -79,7 +116,7 @@ def generate_betting_pool_idea_from_seed(state: ResearchGraphOutput):
     user1 = "@cosmic_ferris_wheel"
     user2 = "@KuphJr"
     user3 = "@lejohndary"
-    user4 = "@can"  # TODO I couldn't figure out how to  get 4th team member's username in telegram, not sure if this is right
+    user4 = "@betbugdev"  
     bot = "@HalluciBetrBot"
 
     prompt = f"""

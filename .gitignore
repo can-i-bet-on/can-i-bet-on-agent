@@ -84,3 +84,4 @@ langgraph-*.log
 .langgraph_api/
 
 
+.editorconfig
