@@ -49,33 +49,6 @@ CONTRACT_ABI = [
         "stateMutability": "nonpayable",
         "type": "function"
     },
-
-    # PoolCreated event
-    {
-        "anonymous": False,
-        "inputs": [
-            {"indexed": True, "internalType": "uint256", "name": "poolId", "type": "uint256"},
-            {"indexed": True, "internalType": "string", "name": "creatorId", "type": "string"},
-            {
-                "components": [
-                    {"internalType": "string", "name": "question", "type": "string"},
-                    {"internalType": "string[2]", "name": "options", "type": "string[2]"},
-                    {"internalType": "uint40", "name": "betsCloseAt", "type": "uint40"},
-                    {"internalType": "uint40", "name": "decisionDate", "type": "uint40"},
-                    {"internalType": "string", "name": "imageUrl", "type": "string"},
-                    {"internalType": "string", "name": "category", "type": "string"},
-                    {"internalType": "string", "name": "creatorName", "type": "string"},
-                    {"internalType": "string", "name": "closureCriteria", "type": "string"},
-                    {"internalType": "string", "name": "closureInstructions", "type": "string"}
-                ],
-                "internalType": "struct PoolCreatedEvent",
-                "name": "poolDetails",
-                "type": "tuple"
-            }
-        ],
-        "name": "PoolCreated",
-        "type": "event"
-    }
 ]
 
 # Initialize contract
@@ -90,13 +63,20 @@ def generate_twitter_intent_url(text):
     encoded_text = urllib.parse.quote(text)
     return f"https://twitter.com/intent/tweet?text={encoded_text}"
 
-async def call_langgraph_agent(user_prompt):
+async def call_langgraph_agent(message_text=None, reply_text=None):
     # Initialize the Langraph client and remote graph
     betting_pool_idea_generator_agent
     
-    message = {"role": "user", "content": "Generate a betting pool for me"}
-    if user_prompt:
-        message["content"] = user_prompt
+    message = {
+        "role": "user", 
+        "content": "Generate a betting pool for me."
+    }
+    if message_text:
+        message["content"] = f"message['content']\n<text>{message_text}</text>"
+    if reply_text:
+        message["content"] = f"message['content']\n<reply_text>{reply_text}</reply_text>"
+    
+    print(f"message: {message}")
 
     # Call the Langraph endpoint asynchronously
     try:
@@ -169,14 +149,14 @@ def create_pool(pool_data):
         
         # Sign and send the transaction
         signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
-        print(f"signed_tx: {signed_tx}")
+        # print(f"signed_tx: {signed_tx}")
         tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
-        print(f"tx_hash: {tx_hash}")
+        # print(f"tx_hash: {tx_hash}")
 
         # Wait for transaction receipt
         receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-        print(f"receipt: {receipt}")
+        # print(f"receipt: {receipt}")
 
         # pool_created_events = CONTRACT.events.PoolCreated().process_receipt(receipt)
         # print(f"pool_created_events: {pool_created_events}")
@@ -187,7 +167,7 @@ def create_pool(pool_data):
         # print(f"pool_id: {pool_id}")
 
         # The logs contain the event data
-        print(f"Receipt logs: {receipt['logs']}")
+        # print(f"Receipt logs: {receipt['logs']}")
         
         # The first log should contain our event
         # poolId should be in topics[1] since it's the first indexed parameter
@@ -208,14 +188,19 @@ async def create_pool_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Generating betting idea...")
     
     # Extract additional message text
-    user_prompt = update.message.text.replace(f'/{GENERATE_BETTING_POOL_COMMAND}', '').strip()
+    message_text = update.message.text.replace(f'/{GENERATE_BETTING_POOL_COMMAND}', '').strip()
+    print(f"message_text: {message_text}")
+    reply_text = (
+        update.message.reply_to_message.text if update.message.reply_to_message else None
+    )
+    print(f"reply_text: {reply_text}")
     creator_name = update.message.from_user.username
     creator_id = str(update.message.from_user.id)
     bets_close_at = datetime.now() + timedelta(days=1)
     
     try:
         # Call the Langraph agent
-        langgraph_agent_response = await call_langgraph_agent(user_prompt)
+        langgraph_agent_response = await call_langgraph_agent(message_text, reply_text)
         print(f"langgraph_agent_response: {langgraph_agent_response}")
 
         betting_pool_data = langgraph_agent_response['betting_pool_idea']
