@@ -12,7 +12,8 @@ load_dotenv()
 # Environment variables
 HALLUCIBETRBOT_TOKEN = os.getenv('HALLUCIBETRBOT_TOKEN')
 FRONTEND_URL_PREFIX = os.getenv('FRONTEND_URL_PREFIX')  
-GENERATE_BETTING_POOL_COMMAND = "generate_betting_pool_idea"
+LOCAL_DEV_IDENTIFIER=os.getenv('LOCAL_DEV_IDENTIFIER', "")
+GENERATE_BETTING_POOL_COMMAND = f"generate_betting_pool_idea{LOCAL_DEV_IDENTIFIER}"
 
 async def share_pool(update: Update, context: ContextTypes.DEFAULT_TYPE, pool_id_hex: str):
     try:
