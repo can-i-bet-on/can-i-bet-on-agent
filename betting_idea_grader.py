@@ -84,7 +84,7 @@ def generate_evidence_queries(state: BettingPoolIdeaGraderGraphOutput):
 
     evidence_search_sys_msg = SystemMessage(
         content=f"""
-    Your task is to generate 3-5 search queries for the Perplexity API that can be used to find evidence that will help determine the outcome of a betting pool according to its closure instructions.
+    Your task is to generate 3-4 search queries for the Perplexity API that can be used to find evidence that will help determine the outcome of a betting pool according to its closure instructions.
 
     You will be provided with:
     - The betting pool idea (what users are betting on)
@@ -121,7 +121,7 @@ def generate_evidence_queries(state: BettingPoolIdeaGraderGraphOutput):
     """
     )
 
-    structured_llm = perplexity_llm.with_structured_output(EvidenceSearchQueries)
+    structured_llm = openai_llm.with_structured_output(EvidenceSearchQueries)
     result = structured_llm.invoke([evidence_search_sys_msg, evidence_search_user_msg])
     print("Evidence search result:", result)
     return {
@@ -159,7 +159,7 @@ def gather_evidence(state: BettingPoolIdeaGraderGraphOutput):
         """
     )
     
-    structured_llm = perplexity_llm.with_structured_output(Evidence)
+    structured_llm = openai_llm.with_structured_output(Evidence)
     
     for query in search_queries:
         search_user_msg = HumanMessage(
@@ -239,11 +239,10 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
       * Past events: closure datetime is EARLIER than current datetime (compare both date AND time components)
       * Future events: closure datetime is LATER than current datetime (compare both date AND time components)
     - For past events (where closure time has passed), if you're not 100% certain of the outcome, distribute probabilities based on your confidence
-    - For past events, it should NEVER return "not resolved yet" as a result
-    - For future events (where closure time has not yet passed), return "not resolved yet" as a result and probabilities of 0 for all options and an empty list of sources
+    - For future events (where closure time has not yet passed), return "not resolved yet" unless there is high confidence (probability > 0.8) that a decision can be made based on the evidence
     - For future events that cannot be determined yet, return "not resolved yet" as a result and probabilities of 0 for all options and an empty list of sources
-    - The result must be the option with the highest probability
-    - All probabilities must sum to exactly 1.0 for past events and 0 for future events
+    - The result must be one of the following: "not resolved yet", "option A", "option B", or "push"
+    - All probabilities must sum to exactly 1.0 for past events and 0 for future events unless a decision is made with high confidence
     - You MUST include ALL sources used to reach your conclusion in the sources list
     - Prefer sources that:
       * Are from reputable news organizations or official websites
@@ -252,18 +251,19 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
       * Provide verifiable data or official statements
 
     Grading guidelines:
-    - High probability (>0.6): Strong evidence for this option
-    - Medium probability (0.3-0.6): Some evidence or reasonable likelihood
+    - High probability (>0.8): Strong evidence for this option, even if the event has not ended
+    - Medium probability (0.3-0.8): Some evidence or reasonable likelihood
     - Low probability (<0.3): Less likely but still possible
     - Only assign 1.0 if you have absolute certainty of the outcome
     - When sources disagree, distribute probabilities to reflect the relative strength and reliability of each source
+    - If neither option A nor option B is the result, return "push" as the result.
 
     Your response must be ONLY a JSON object. Do not include any explanatory text, markdown formatting, or code blocks:
     {{
-        "result": "", // the option with highest probability
+        "result": "", // the result must be "not resolved yet", "option A", "option B", or "push"
         "probabilities": {{
             // Assign each option a probability between 0.01 and 1.0
-            // Probabilities MUST sum to exactly 1.0 for past events and 0 for future events
+            // Probabilities MUST sum to exactly 1.0 for past events and 0 for future events unless a decision is made with high confidence
             // Use the exact option names as provided
         }},
         "sources": [
@@ -282,22 +282,44 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
     Question: {betting_pool['betting_pool_idea']}
     Options: {betting_pool['options']}
     
-    CLOSURE SUMMARY:
-    {betting_pool['closure_summary']}
+    Option A corresponds to: {betting_pool['options'][0]}
+    Option B corresponds to: {betting_pool['options'][1]}
+    
+    CLOSURE CRITERIA:
+    {betting_pool['closure_criteria']}
     
     CLOSURE INSTRUCTIONS:
     {betting_pool['closure_instructions']}
     
-    CLOSURE DATETIME: {betting_pool['closure_date']}
+    CLOSURE DATETIME: {datetime.fromtimestamp(betting_pool['closure_datetime']).strftime('%Y-%m-%d %H:%M:%S')}
 
     CURRENT DATETIME: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
     """)
 
-    structured_llm = perplexity_llm.with_structured_output(BettingPoolIdeaGraderOutput)
+    structured_llm = openai_llm.with_structured_output(BettingPoolIdeaGraderOutput)
     result = structured_llm.invoke([grading_sys_msg, grading_user_msg])
     print("Grading result:", result)
+
+    # Determine the result code based on the grading output
+    if result.result == "not resolved yet":
+        result_code = 0  # NOT READY TO GRADE
+    elif result.result == "option A":
+        result_code = 1  # is option A
+    elif result.result == "option B":
+        result_code = 2  # is option B
+    elif result.result == "push":
+        result_code = 3  # is DRAW
+    else:
+        result_code = 4  # is ERROR
+
     return {
-        'betting_pool_idea_result': result
+        'betting_pool_idea_result': {
+            'result': result.result,
+            'result_code': result_code,
+            'probabilities': result.probabilities,
+            'sources': result.sources,
+            'explanation': result.explanation
+        }
     }
 
 
@@ -306,14 +328,13 @@ def grade_betting_pool_idea2(betting_pool):
     
     print("Grading betting pool idea")
     
-    # betting_pool = state.get("betting_pool_idea")
     print(f"betting_pool in grade_betting_pool_idea: {betting_pool}")
     
     grading_sys_msg = SystemMessage(content=f"""
     You are a betting pool idea grader with expertise in data analysis and probability assessment.
     
     Your task is to:
-    1. Understand the EXACT question and its closure summary, closure instructions, and closure date
+    1. Understand the EXACT question and its closure criteria, closure instructions, and closure date
     2. Assign probabilities that reflect your confidence in each option
     3. Always choose the highest probability option as the result
     
@@ -340,10 +361,11 @@ def grade_betting_pool_idea2(betting_pool):
     - Low probability (<0.3): Less likely but still possible
     - Only assign 1.0 if you have absolute certainty of the outcome
     - When sources disagree, distribute probabilities to reflect the relative strength and reliability of each source
+    - If neither option A nor option B is the result, return "push" as the result.
 
     Your response must be ONLY a JSON object. Do not include any explanatory text, markdown formatting, or code blocks:
     {{
-        "result": "", // the option with highest probability
+        "result": "", // the option with highest probability or "push"
         "probabilities": {{
             // Assign each option a probability between 0.01 and 1.0
             // Probabilities MUST sum to exactly 1.0 for past events and 0 for future events
@@ -368,14 +390,27 @@ def grade_betting_pool_idea2(betting_pool):
     CLOSURE INSTRUCTIONS:
     {betting_pool['closure_instructions']}
     
-    CLOSURE DATETIME: {betting_pool['closure_date']}
+    CLOSURE DATETIME: {betting_pool['closure_datetime']}
 
     CURRENT DATETIME: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
     """)
 
-    structured_llm = perplexity_llm.with_structured_output(BettingPoolIdeaGraderOutput)
+    structured_llm = openai_llm.with_structured_output(BettingPoolIdeaGraderOutput)
     result = structured_llm.invoke([grading_sys_msg, grading_user_msg])
     print("Grading result:", result)
+
+    # Determine the result based on the grading output
+    if result.result == "not resolved yet":
+        return 0  # NOT READY TO GRADE
+    elif result.result == "option A":
+        return 1  # is option A
+    elif result.result == "option B":
+        return 2  # is option B
+    elif result.result == "push":
+        return 3  # is DRAW
+    else:
+        return 4  # is ERROR
+
     return {
         "result": result.result,
         "probabilities": result.probabilities,

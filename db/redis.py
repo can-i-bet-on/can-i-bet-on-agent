@@ -1,5 +1,8 @@
 import os
 import redis
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Redis configuration
 REDIS_HOST = os.getenv('REDIS_HOST')

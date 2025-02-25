@@ -3,6 +3,8 @@ from web3 import Web3
 import os
 import urllib.parse
 from dotenv import load_dotenv
+from db.redis import get_redis_client
+import requests
 
 # Load environment variables
 load_dotenv()
@@ -12,6 +14,7 @@ WEB3_NODE_URL = os.getenv('WEB3_NODE_URL')
 CONTRACT_ADDRESS = os.getenv('CONTRACT_ADDRESS')
 PRIVATE_KEY = os.getenv('PRIVATE_KEY')
 GAS_LIMIT = int(os.getenv('GAS_LIMIT', 3000000))
+SUBGRAPH_URL = os.getenv("SUBGRAPH_URL")
 
 # Initialize Web3
 w3 = Web3(Web3.HTTPProvider(WEB3_NODE_URL))
@@ -47,6 +50,15 @@ CONTRACT_ABI = [
             {"internalType": "string", "name": "twitterPostId", "type": "string"}
         ],
         "name": "setTwitterPostId",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "uint256", "name": "poolId", "type": "uint256"}
+        ],
+        "name": "gradeBet",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
@@ -195,3 +207,90 @@ def set_twitter_post_id(pool_id, tweet_id):
         return receipt
     except Exception as e:
         raise Exception(f"Error setting Twitter post ID: {str(e)}")
+
+
+def fetch_pending_pools():
+    """
+    Fetches pending pools from the GraphQL endpoint and prints their details.
+    """
+    query = """
+    query {
+      pools(where: {status: "PENDING"}) {
+        id
+        status
+        question
+        options
+        betsCloseAt
+        decisionDate
+        closureCriteria
+        closureInstructions
+      }
+    }
+    """
+
+    try:
+        # Send the POST request
+        print(f"SUBGRAPH_URL: {SUBGRAPH_URL}")
+        response = requests.post(SUBGRAPH_URL, json={'query': query})
+        response.raise_for_status()
+
+        # Parse the JSON response
+        data = response.json()
+        
+        # Return the pools (already filtered by the query)
+        return data['data']['pools']
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {e}")
+        if response is not None:
+            print(f"Response content: {response.content}")
+        return []
+
+def grade_pool_with_langgraph_agent(agent, pool):
+    pool_idea = {}
+    pool_idea['betting_pool_idea'] = pool['question']
+    pool_idea['closure_criteria'] = pool['closureCriteria']
+    pool_idea['closure_instructions'] = pool['closureInstructions']
+    pool_idea['closure_datetime'] = int(pool['decisionDate'])
+    pool_idea['options'] = pool['options']
+
+    idea_grade = agent.invoke(
+        {
+            "betting_pool_idea": pool_idea,
+        }
+    )
+
+    print("idea_grade:", idea_grade)
+    return idea_grade['betting_pool_idea_result']
+
+def store_pool_grade(pool_id_str, grade):
+    redis_client = get_redis_client()
+    print(f"Setting pool grade for {pool_id_str} to {grade} with redis_client {redis_client}")
+    redis_client.set(f"POOL_GRADE:{pool_id_str}", grade)
+    redis_client.close()
+
+
+def call_grade_pool_contract(pool_id):
+    try:
+        # Build the transaction
+        tx = CONTRACT.functions.gradeBet(
+            pool_id
+        ).build_transaction({
+            'from': ACCOUNT.address,
+            'nonce': w3.eth.get_transaction_count(ACCOUNT.address),
+            'gas': GAS_LIMIT,
+            'gasPrice': w3.eth.gas_price
+        })
+
+        # Sign the transaction
+        signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+
+        # Send the transaction
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+
+        # Wait for the transaction receipt
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+
+        print(f"Grading pool transaction successful with hash: {tx_hash.hex()}, receipt: {receipt}")
+        return receipt
+    except Exception as e:
+        raise Exception(f"Error calling gradeBet contract: {str(e)}")
