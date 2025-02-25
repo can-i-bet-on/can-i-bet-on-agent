@@ -4,10 +4,10 @@ import requests
 import asyncio
 from dotenv import load_dotenv
 from datetime import timezone, datetime
-import dataclasses
 from api.twitterapi.tweets import Tweet
 from betting_pool_core import call_langgraph_agent
 from betting_pool_generator import betting_pool_idea_generator_agent
+from db.redis import get_redis_client
 
 # Load environment variables
 load_dotenv()
@@ -21,20 +21,21 @@ load_dotenv()
 TWITTERAPI_BASE_URL = "https://api.twitterapi.io/twitter"
 TWITTERAPI_API_KEY = os.getenv("TWITTERAPI_API_KEY")
 LISTENER_TWITTER_HANDLE = os.getenv("LISTENER_TWITTER_HANDLE")
-POLLING_INTERVAL = int(os.getenv("POLLING_INTERVAL"))
+POLLING_INTERVAL = int(os.getenv("POLLING_INTERVAL", 30))
+POLLING_WINDOW = int(os.getenv("POLLING_WINDOW", 3600))
 
 # After loading environment variables, add validation
-if not all([TWITTERAPI_API_KEY, LISTENER_TWITTER_HANDLE, POLLING_INTERVAL]):
+if not all([TWITTERAPI_API_KEY, LISTENER_TWITTER_HANDLE]):
     raise ValueError(
         "Missing required environment variables. Please ensure TWITTERAPI_API_KEY, LISTENER_TWITTER_HANDLE, "
-        "POLLING_INTERVAL are set in your .env file"
+        "are set in your .env file"
     )
 
 
 
 
 def pull_tweets(handle):
-    review_timestamp = int(datetime.now(timezone.utc).timestamp() - POLLING_INTERVAL)
+    review_timestamp = int(datetime.now(timezone.utc).timestamp() - POLLING_WINDOW)
 
     print("reviewing since", review_timestamp)
     url = f"{TWITTERAPI_BASE_URL}/user/mentions?userName={handle}&sinceTime={review_timestamp}"
@@ -68,6 +69,8 @@ def pull_tweets(handle):
 
 
 async def poll_tweet_mentions():
+    redis_client = get_redis_client()
+    reviewed_tweets = redis_client.smembers("reviewed_tweets")
     tweets = pull_tweets(LISTENER_TWITTER_HANDLE)
     if tweets is None:
         print("Failed to fetch tweets, will retry in next polling interval")
@@ -75,15 +78,17 @@ async def poll_tweet_mentions():
     if tweets == []:
         print("No tweets found, will retry in next polling interval")
         return
-    bets = [propose_bet(tweet_data) for tweet_data in tweets]
+    bets = [propose_bet(tweet_data) for tweet_data in tweets if tweet_data.tweet_id not in reviewed_tweets]
     return asyncio.gather(*bets)
 
 
 async def propose_bet(tweet_data: Tweet):
+    redis_client = get_redis_client()
     print(f"Proposing bet for new tweet from @{tweet_data.author.user_name}: {tweet_data.text}")
     try:
         # Call the Langraph agent
         langgraph_agent_response = await call_langgraph_agent(betting_pool_idea_generator_agent, tweet_data.text, "")
+        redis_client.sadd("reviewed_tweets", tweet_data.tweet_id)
         print(f"langgraph_agent_response: {langgraph_agent_response}")
         return langgraph_agent_response
     except Exception as e:
@@ -91,6 +96,7 @@ async def propose_bet(tweet_data: Tweet):
 
 if __name__ == "__main__":
     while True:
+        redis_client = get_redis_client()
         asyncio.run(poll_tweet_mentions())
         # print("Waiting 1 hour before next tweet...")
         time.sleep(POLLING_INTERVAL)  

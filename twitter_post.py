@@ -1,10 +1,8 @@
 import os
 from dotenv import load_dotenv
-import redis
+from db.redis import get_redis_client
 import requests
 from datetime import datetime, timedelta
-import ssl
-import json
 import base64
 
 # Load environment variables
@@ -14,25 +12,7 @@ load_dotenv()
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 
-# Redis configuration
-REDIS_HOST = os.getenv('REDIS_HOST')
-REDIS_PORT = int(os.getenv('REDIS_PORT', '25061'))
-REDIS_USERNAME = os.getenv('REDIS_USERNAME')
-REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
-REDIS_USE_TLS = os.getenv('REDIS_USE_TLS', 'true').lower() == 'true'
-
-def get_redis_client():
-    return redis.Redis(
-        host=REDIS_HOST,
-        port=REDIS_PORT,
-        username=REDIS_USERNAME,
-        password=REDIS_PASSWORD,
-        ssl=REDIS_USE_TLS,
-        ssl_cert_reqs=None,
-        decode_responses=True
-    )
-
-def refresh_tokens(refresh_token):
+def refresh_twitter_tokens(refresh_token):
     """Refresh both access and refresh tokens using the Twitter API."""
     auth = f"{CLIENT_ID}:{CLIENT_SECRET}"
     auth_bytes = auth.encode('ascii')
@@ -139,7 +119,7 @@ def main():
         
         # Refresh the tokens
         print("Refreshing tokens...")
-        new_tokens = refresh_tokens(current_refresh_token)
+        new_tokens = refresh_twitter_tokens(current_refresh_token)
         
         # Store new tokens in Redis with 90-day expiration
         expiration = int(timedelta(days=90).total_seconds())
