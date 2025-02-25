@@ -34,7 +34,7 @@ class ResearchGraphOutput(MessagesState):
     topic: str
     search_results: list[str]
     news_results: list[str]
-    image_results: list[dict]
+    # image_results: list[dict]
     betting_pool_idea: BettingPoolGeneratorOutput
 
 
@@ -55,15 +55,15 @@ smol_llm = ChatOpenAI(
     model="gpt-4o",
     # model="perplexity/sonar-medium-online",
     temperature=0,
-    # api_key=os.getenv("OPENROUTER_API_KEY"),
+    api_key=os.getenv("OPENAI_API_KEY"),
 )
 
-big_llm = ChatOpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    model="perplexity/sonar-reasoning",
-    # model="perplexity/sonar", #Lightweight model for questions and answers
+big_llm =  ChatOpenAI(
+    # base_url="https://openrouter.ai/api/v1",
+    model="gpt-4o",
+    # model="perplexity/sonar-medium-online",
     temperature=0,
-    api_key=os.getenv("OPENROUTER_API_KEY"),
+    api_key=os.getenv("OPENAI_API_KEY"),
 )
 
 # llm = ChatAnthropic(
@@ -250,6 +250,7 @@ def generate_topic(state: ResearchGraphOutput):
 
 def generate_betting_pool_idea(state: ResearchGraphOutput):
     """Generate a betting pool"""
+    print("OpenAI API key:", os.getenv("OPENAI_API_KEY"))
     print("Generating betting pool idea", state.get("prefer_fast_response"))
     betting_pool_db = BettingPoolDB()
 
@@ -417,12 +418,12 @@ betting_pool_idea_generator.add_node("generate_topic", generate_topic)
 betting_pool_idea_generator.add_node(
     "generate_betting_pool_idea", generate_betting_pool_idea
 )
-betting_pool_idea_generator.add_node("search_images", search_images_for_pool)
+# betting_pool_idea_generator.add_node("search_images", search_images_for_pool)
 
 betting_pool_idea_generator.add_edge(START, "extract_topic")
 betting_pool_idea_generator.add_edge("extract_topic", "generate_topic")
 betting_pool_idea_generator.add_edge("generate_topic", "generate_betting_pool_idea")
-betting_pool_idea_generator.add_edge("generate_betting_pool_idea", "search_images")
-betting_pool_idea_generator.add_edge("search_images", END)
+betting_pool_idea_generator.add_edge("generate_betting_pool_idea", END)
+# betting_pool_idea_generator.add_edge("search_images", END)
 
 betting_pool_idea_generator_agent = betting_pool_idea_generator.compile()
