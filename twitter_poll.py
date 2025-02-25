@@ -5,9 +5,10 @@ import asyncio
 from dotenv import load_dotenv
 from datetime import timezone, datetime
 from api.twitterapi.tweets import Tweet, twitterapi_get
-from betting_pool_core import call_langgraph_agent, create_pool, create_pool_data
+from betting_pool_core import call_langgraph_agent, create_pool, create_pool_data, generate_tweet_content
 from betting_pool_generator import betting_pool_idea_generator_agent
 from db.redis import get_redis_client
+from twitter_post import post_tweet_using_redis_token
 
 # Load environment variables
 load_dotenv()
@@ -20,14 +21,15 @@ load_dotenv()
 
 TWITTERAPI_BASE_URL = "https://api.twitterapi.io/twitter"
 TWITTERAPI_API_KEY = os.getenv("TWITTERAPI_API_KEY")
+FRONTEND_URL_PREFIX = os.getenv("FRONTEND_URL_PREFIX")
 LISTENER_TWITTER_HANDLE = os.getenv("LISTENER_TWITTER_HANDLE")
 POLLING_INTERVAL = int(os.getenv("POLLING_INTERVAL", 30))
 POLLING_WINDOW = int(os.getenv("POLLING_WINDOW", 3600))
 
 # After loading environment variables, add validation
-if not all([TWITTERAPI_API_KEY, LISTENER_TWITTER_HANDLE]):
+if not all([TWITTERAPI_API_KEY, LISTENER_TWITTER_HANDLE, FRONTEND_URL_PREFIX]):
     raise ValueError(
-        "Missing required environment variables. Please ensure TWITTERAPI_API_KEY, LISTENER_TWITTER_HANDLE, "
+        "Missing required environment variables. Please ensure TWITTERAPI_API_KEY, LISTENER_TWITTER_HANDLE, FRONTEND_URL_PREFIX "
         "are set in your .env file"
     )
 
@@ -83,13 +85,15 @@ async def propose_bet(tweet_data: Tweet):
     try:
         # Call the Langraph agent
         langgraph_agent_response = await call_langgraph_agent(betting_pool_idea_generator_agent, tweet_data.text, original_tweet.text if original_tweet else "")
-        redis_client.sadd("reviewed_tweets", tweet_data.tweet_id)
         print(f"langgraph_agent_response: {langgraph_agent_response}")
                 # Use the new function to create pool_data
         pool_data = create_pool_data(langgraph_agent_response, tweet_data.author.user_name, tweet_data.author.author_id)
-        
         pool_id = create_pool(pool_data)
         print("created pool", pool_id)
+
+        redis_client.sadd("reviewed_tweets", tweet_data.tweet_id)
+        reply_tweet_text = generate_tweet_content(pool_id, pool_data, FRONTEND_URL_PREFIX)
+        post_tweet_using_redis_token(reply_tweet_text, tweet_data.tweet_id)
         return langgraph_agent_response
     except Exception as e:
         print("Something went wrong with the bet proposal: ", str(e))

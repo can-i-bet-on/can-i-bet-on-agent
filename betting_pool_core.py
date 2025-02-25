@@ -3,7 +3,6 @@ from web3 import Web3
 import os
 import urllib.parse
 from dotenv import load_dotenv
-from twitter_post import post_tweet_using_redis_token
 
 # Load environment variables
 load_dotenv()
@@ -136,21 +135,16 @@ def generate_tweet_content(pool_id, pool_data, frontend_url_prefix):
             f"Place your bets: {full_url}"
         )
         
-        # Post the tweet using the existing method
-        tweet_id = post_tweet_using_redis_token(tweet_text)
-        if tweet_id is None:
-            return None
-
-        # Set the Twitter post ID in the contract
-        set_twitter_post_id(pool_id, tweet_id)
-        
         return tweet_text
     else:
         return None
 
 def create_pool_data(langgraph_agent_response, creator_name, creator_id):
     betting_pool_data = langgraph_agent_response['betting_pool_idea']
-    decision_date = datetime.strptime(betting_pool_data['closure_date'], '%Y-%m-%dT%H:%M:%S')
+    try:
+        decision_date = datetime.strptime(betting_pool_data['closure_date'], '%Y-%m-%dT%H:%M:%S')
+    except ValueError:
+        decision_date = datetime.strptime(betting_pool_data['closure_date'], '%Y-%m-%dT%H:%M:%SZ')
 
     # Set bets_close_at to one day before the decision_date
     bets_close_at = datetime.now() + timedelta(days=1)

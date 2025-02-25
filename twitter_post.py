@@ -9,8 +9,8 @@ import base64
 load_dotenv()
 
 # Twitter API configuration
-CLIENT_ID = os.getenv('CLIENT_ID')
-CLIENT_SECRET = os.getenv('CLIENT_SECRET')
+CLIENT_ID = os.getenv('TWITTER_CLIENT_ID')
+CLIENT_SECRET = os.getenv('TWITTER_CLIENT_SECRET')
 
 def refresh_twitter_tokens(refresh_token):
     """Refresh both access and refresh tokens using the Twitter API."""
@@ -39,7 +39,7 @@ def refresh_twitter_tokens(refresh_token):
     
     return response.json()
 
-def post_tweet(access_token, message):
+def post_tweet(access_token, message, in_reply_to_id=None):
     """Post a tweet using the Twitter API v2."""
     headers = {
         'Authorization': f'Bearer {access_token}',
@@ -47,8 +47,10 @@ def post_tweet(access_token, message):
     }
     
     data = {
-        'text': message
+        'text': message,
     }
+    if in_reply_to_id:
+        data.update(reply={'in_reply_to_tweet_id': in_reply_to_id})
     
     response = requests.post(
         'https://api.twitter.com/2/tweets',
@@ -79,14 +81,14 @@ def refresh_and_store_tokens(redis_client):
     
     return new_tokens['access_token']
 
-def post_tweet_using_redis_token(tweet_text):
+def post_tweet_using_redis_token(tweet_text, in_reply_to_id=None):
     try:
         # Get Redis client
         redis_client = get_redis_client()
         
         # Attempt to post the tweet
         access_token = redis_client.get('ACCESS_TOKEN')
-        result = post_tweet(access_token, tweet_text)
+        result = post_tweet(access_token, tweet_text, in_reply_to_id)
         print(f"Successfully posted tweet! Tweet ID: {result['data']['id']}")
         return result['data']['id']
         
@@ -96,7 +98,7 @@ def post_tweet_using_redis_token(tweet_text):
         # Attempt to refresh tokens and retry posting the tweet
         try:
             access_token = refresh_and_store_tokens(redis_client)
-            result = post_tweet(access_token, tweet_text)
+            result = post_tweet(access_token, tweet_text, in_reply_to_id)
             print(f"Successfully posted tweet after refreshing tokens! Tweet ID: {result['data']['id']}")
             return result['data']['id']
         
