@@ -13,3 +13,4 @@ pydantic
 web3
 tweepy
 redis
+requests

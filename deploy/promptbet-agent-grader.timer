@@ -1,0 +1,11 @@
+[Unit]
+Description=Execute promptbet grader every 4 hours
+
+[Timer]
+OnCalendar=0/4:00:00
+AccuracySec=1s
+OnBootSec=10s
+Unit=promptbet-agent-grader.service
+
+[Install]
+WantedBy=timers.target 

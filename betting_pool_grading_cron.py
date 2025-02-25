@@ -32,7 +32,7 @@ def grade_pending_pools():
         logging.info(f"Found {len(pending_pools)} pending pools")
 
         # for testing
-        pending_pools = [pending_pools[3]]
+        # pending_pools = [pending_pools[3]]
 
         # Process each pool
         for pool in pending_pools:

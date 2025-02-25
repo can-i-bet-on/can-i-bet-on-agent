@@ -24,6 +24,8 @@ ssh "$deploy_acct" <<ENDSSH
   pip install -r requirements.txt
 	sudo cp deploy/promptbet-agent.service /etc/systemd/system/promptbet-agent.service
 	sudo cp deploy/promptbet-agent.timer /etc/systemd/system/promptbet-agent.timer
+	sudo cp deploy/promptbet-agent-grader.service /etc/systemd/system/promptbet-agent-grader.service
+	sudo cp deploy/promptbet-agent-grader.timer /etc/systemd/system/promptbet-agent-grader.timer
 ENDSSH
 
 # docker compose down
