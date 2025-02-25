@@ -10,18 +10,18 @@ rsync -avz --exclude-from='.gitignore' --exclude='.git' --include='.env' --delet
 #rsync doesn't always get the .env file for some reason, so we'll just copy it manually
 scp .env root@pvpvai.com:/root/promptbet-agent/.env
 
-## Step 2: SSH into the remote server, navigate to the directory, rename .envrc.prod to .envrc and run the docker commands
-ssh root@pvpvai.com << 'ENDSSH'
-  cd /root/promptbet-agent/
-  echo "HI"
-#   docker image build -t promptbet-agent .
-  source venv/bin/activate
-  pip install -r requirements.txt
-  docker compose down
-  langgraph build -t promptbet-agent
-  docker build -t promptbet-telegram-bot -f Dockerfile.telegram . 
-  docker compose up -d
-ENDSSH
+# ## Step 2: SSH into the remote server, navigate to the directory, rename .envrc.prod to .envrc and run the docker commands
+# ssh root@pvpvai.com << 'ENDSSH'
+#   cd /root/promptbet-agent/
+#   echo "HI"
+# #   docker image build -t promptbet-agent .
+#   source venv/bin/activate
+#   pip install -r requirements.txt
+#   docker compose down
+#   langgraph build -t promptbet-agent
+#   docker build -t promptbet-telegram-bot -f Dockerfile.telegram . 
+#   docker compose up -d
+# ENDSSH
 
 # docker compose down
 # docker compose up -d
