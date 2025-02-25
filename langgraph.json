@@ -1,0 +1,9 @@
+{
+  "dockerfile_lines": [],
+  "graphs": {
+    "betting_pool_generator": "./betting_pool_generator.py:betting_pool_idea_generator_agent"
+  },
+  "env": "./.env",
+  "python_version": "3.12",
+  "dependencies": ["."]
+}
