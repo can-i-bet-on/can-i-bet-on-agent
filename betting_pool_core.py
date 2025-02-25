@@ -62,15 +62,15 @@ def generate_twitter_intent_url(text):
     encoded_text = urllib.parse.quote(text)
     return f"https://twitter.com/intent/tweet?text={encoded_text}"
 
-async def call_langgraph_agent(agent, message_text=None, reply_text=None):
+async def call_langgraph_agent(agent, message_text=None, original_text=None):
     message = {
         "role": "user", 
         "content": "Generate a betting pool for me."
     }
+    if original_text:
+        message["content"] += f"\n<original_text>{original_text}</original_text>"
     if message_text:
         message["content"] += f"\n<text>{message_text}</text>"
-    if reply_text:
-        message["content"] += f"\n<reply_text>{reply_text}</reply_text>"
 
     try:
         agent_response = agent.invoke(

@@ -4,7 +4,7 @@ import requests
 import asyncio
 from dotenv import load_dotenv
 from datetime import timezone, datetime
-from api.twitterapi.tweets import Tweet
+from api.twitterapi.tweets import Tweet, twitterapi_get
 from betting_pool_core import call_langgraph_agent
 from betting_pool_generator import betting_pool_idea_generator_agent
 from db.redis import get_redis_client
@@ -32,7 +32,16 @@ if not all([TWITTERAPI_API_KEY, LISTENER_TWITTER_HANDLE]):
     )
 
 
+def pull_tweet(tweet_id):
+    url = f"{TWITTERAPI_BASE_URL}/tweets?tweet_ids={tweet_id}"
+    print(f"pulling tweet {tweet_id} from {url}")
+    response = twitterapi_get(url)
+    if response:
+        data = response.json()
+        if data and data["tweets"]:
+            return Tweet.from_dict(data["tweets"][0])
 
+    return None
 
 def pull_tweets(handle):
     review_timestamp = int(datetime.now(timezone.utc).timestamp() - POLLING_WINDOW)
@@ -40,31 +49,13 @@ def pull_tweets(handle):
     print("reviewing since", review_timestamp)
     url = f"{TWITTERAPI_BASE_URL}/user/mentions?userName={handle}&sinceTime={review_timestamp}"
     
-    try:
-        response = requests.get(url, headers={"x-api-key": TWITTERAPI_API_KEY})
-        response.raise_for_status()
-        
+    response = twitterapi_get(url)
+    if response:
         data = response.json()
         if data and data["tweets"]:
             return [Tweet.from_dict(tweet) for tweet in data["tweets"]]
         return []
-        
-    except requests.exceptions.HTTPError as http_err:
-        print(f"HTTP error occurred: {http_err}")
-        if response.status_code == 429:
-            print("Rate limit exceeded. Consider implementing backoff.")
-        elif response.status_code == 401:
-            print("Authentication error. Check your API key.")
-        elif response.status_code == 404:
-            print(f"User {handle} not found.")
-        return None
-        
-    except requests.exceptions.RequestException as err:
-        print(f"Error occurred while making request: {err}")
-        return None
-        
-    except ValueError as err:  # Includes JSONDecodeError
-        print(f"Error parsing JSON response: {err}")
+    else:
         return None
 
 
@@ -84,10 +75,13 @@ async def poll_tweet_mentions():
 
 async def propose_bet(tweet_data: Tweet):
     redis_client = get_redis_client()
-    print(f"Proposing bet for new tweet from @{tweet_data.author.user_name}: {tweet_data.text}")
+    if tweet_data.is_reply:
+        original_tweet = pull_tweet(tweet_data.in_reply_to_id)
+
+    print(f"Proposing bet for new tweet from @{tweet_data.author.user_name}: {tweet_data.text}", f"replying to {original_tweet.text}" if original_tweet else "")
     try:
         # Call the Langraph agent
-        langgraph_agent_response = await call_langgraph_agent(betting_pool_idea_generator_agent, tweet_data.text, "")
+        langgraph_agent_response = await call_langgraph_agent(betting_pool_idea_generator_agent, tweet_data.text, original_tweet.text if original_tweet else "")
         redis_client.sadd("reviewed_tweets", tweet_data.tweet_id)
         print(f"langgraph_agent_response: {langgraph_agent_response}")
         return langgraph_agent_response

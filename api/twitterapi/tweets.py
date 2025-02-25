@@ -1,53 +1,13 @@
 from dataclasses import dataclass
 
+import requests
+import os
+
+TWITTERAPI_API_KEY = os.getenv("TWITTERAPI_API_KEY")
 
 @dataclass(eq=True, frozen=True) 
 class TweetAuthor:
-	# match the following json but using snake case
-	# {
-                # "type": "user",
-                # "userName": "BetbugDev",
-                # "url": "https://x.com/BetbugDev",
-                # "twitterUrl": "https://twitter.com/BetbugDev",
-                # "id": "1523650788802711553",
-                # "name": "Betbug Dev",
-                # "isVerified": false,
-                # "isBlueVerified": false,
-                # "profilePicture": "https://pbs.twimg.com/profile_images/1523651527239380992/Csg_FNIj_normal.jpg",
-                # "coverPicture": "",
-                # "description": "",
-            #     "location": "",
-            #     "followers": 10,
-            #     "following": 152,
-            #     "status": "",
-            #     "canDm": false,
-            #     "canMediaTag": true,
-            #     "createdAt": "Mon May 09 13:09:28 +0000 2022",
-            #     "entities": {
-            #         "description": {
-            #             "urls": []
-            #         },
-            #         "url": {}
-            #     },
-            #     "fastFollowersCount": 0,
-            #     "favouritesCount": 50,
-            #     "hasCustomTimelines": true,
-            #     "isTranslator": false,
-            #     "mediaCount": 2,
-            #     "statusesCount": 105,
-            #     "withheldInCountries": [],
-            #     "affiliatesHighlightedLabel": {},
-            #     "possiblySensitive": false,
-            #     "pinnedTweetIds": [],
-            #     "profile_bio": {
-            #         "description": "Coding at the forefront of a swiftly changing society",
-            #         "entities": {
-            #             "description": {}
-            #         }
-            #     },
-            #     "isAutomated": false,
-            #     "automatedBy": null
-            # }
+
 	type: str
 	user_name: str
 	url: str
@@ -117,27 +77,6 @@ class Tweet:
 
     @classmethod
     def from_dict(cls, data: dict):
-			# create a methods that converts the following json
-			#{
-			#             "type": "tweet",
-			# "id": "1894125452937269400",
-			# "url": "https://x.com/BetbugDev/status/1894125452937269400",
-			# "text": "@CanIBetOn will an AI agent launch this week?",
-			# "source": "Twitter for iPhone",
-			# "retweetCount": 0,
-			# "replyCount": 0,
-			# "likeCount": 0,
-			# "quoteCount": 0,
-			# "viewCount": 0,
-			# "createdAt": "Mon Feb 24 20:41:13 +0000 2025",
-			# "lang": "en",
-			# "bookmarkCount": 0,
-			# "isReply": false,
-			# "inReplyToId": null,
-			# "conversationId": "1894125452937269400",
-			# "inReplyToUserId": "1423703185496199168",
-			# "inReplyToUsername": "CanIBetOn",
-			# }
             return cls(
                 tweet_id=data["id"],
                 text=data["text"],
@@ -157,3 +96,27 @@ class Tweet:
                 in_reply_to_user_id=data["inReplyToUserId"],
                 in_reply_to_username=data["inReplyToUsername"],
             )
+
+def twitterapi_get(url):
+    try:
+        response = requests.get(url, headers={"x-api-key": TWITTERAPI_API_KEY})
+        response.raise_for_status()
+        return response
+        
+    except requests.exceptions.HTTPError as http_err:
+        print(f"HTTP error occurred: {http_err}")
+        if response.status_code == 429:
+            print("Rate limit exceeded. Consider implementing backoff.")
+        elif response.status_code == 401:
+            print("Authentication error. Check your API key.")
+        elif response.status_code == 404:
+            print(f"Resourcenot found.")
+        return None
+        
+    except requests.exceptions.RequestException as err:
+        print(f"Error occurred while making request: {err}")
+        return None
+        
+    except ValueError as err:  # Includes JSONDecodeError
+        print(f"Error parsing JSON response: {err}")
+        return None

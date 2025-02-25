@@ -69,7 +69,7 @@ def refresh_and_store_tokens(redis_client):
     
     # Refresh the tokens
     print("Refreshing tokens...")
-    new_tokens = refresh_tokens(current_refresh_token)
+    new_tokens = refresh_twitter_tokens(current_refresh_token)
     
     # Store new tokens in Redis with 90-day expiration
     expiration = int(timedelta(days=90).total_seconds())
