@@ -5,7 +5,7 @@ import asyncio
 from dotenv import load_dotenv
 from datetime import timezone, datetime
 from api.twitterapi.tweets import Tweet, twitterapi_get
-from betting_pool_core import call_langgraph_agent
+from betting_pool_core import call_langgraph_agent, create_pool, create_pool_data
 from betting_pool_generator import betting_pool_idea_generator_agent
 from db.redis import get_redis_client
 
@@ -75,6 +75,7 @@ async def poll_tweet_mentions():
 
 async def propose_bet(tweet_data: Tweet):
     redis_client = get_redis_client()
+    original_tweet = None
     if tweet_data.is_reply:
         original_tweet = pull_tweet(tweet_data.in_reply_to_id)
 
@@ -84,6 +85,11 @@ async def propose_bet(tweet_data: Tweet):
         langgraph_agent_response = await call_langgraph_agent(betting_pool_idea_generator_agent, tweet_data.text, original_tweet.text if original_tweet else "")
         redis_client.sadd("reviewed_tweets", tweet_data.tweet_id)
         print(f"langgraph_agent_response: {langgraph_agent_response}")
+                # Use the new function to create pool_data
+        pool_data = create_pool_data(langgraph_agent_response, tweet_data.author.user_name, tweet_data.author.author_id)
+        
+        pool_id = create_pool(pool_data)
+        print("created pool", pool_id)
         return langgraph_agent_response
     except Exception as e:
         print("Something went wrong with the bet proposal: ", str(e))
