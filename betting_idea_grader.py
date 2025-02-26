@@ -20,6 +20,7 @@ class BettingPoolIdeaGraderOutput(BaseModel):
     probabilities: Optional[dict[str, float]] = None
     sources: list[str]
     explanation: str
+    time_period_analysis: dict
 
 
 class Evidence(BaseModel):
@@ -57,7 +58,7 @@ openai_llm = ChatOpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
 )
 
-tavily_search = TavilySearchResults(max_results=3)
+tavily_search = TavilySearchResults(max_results=2)
 
 def betting_pool_grading_preamble(betting_pool: dict):
     return f"""
@@ -84,19 +85,23 @@ def generate_evidence_queries(state: BettingPoolIdeaGraderGraphOutput):
 
     evidence_search_sys_msg = SystemMessage(
         content=f"""
-    Your task is to generate 3-4 search queries for the Perplexity API that can be used to find evidence that will help determine the outcome of a betting pool according to its closure instructions.
-
-    You will be provided with:
-    - The betting pool idea (what users are betting on)
-    - The options (yes/no conditions)
-    - The closure summary (high-level how we'll determine the winner)
-    - The closure instructions (detailed steps to determine the winner)
-
-    Generate search queries that will help find evidence to verify the conditions specified in the closure instructions.
+    Your task is to generate 3 search queries for finding evidence about the outcome of a betting pool.
+    
+    IMPORTANT TIME CONTEXT:
+    - Focus on the actual time period mentioned in the question (e.g., "Q1 2024", "January 2024", etc.)
+    - If the question refers to a specific time period that has already passed, prioritize finding final/official results
+    - For questions about specific quarters/periods, ensure to include the company's official reporting dates
+    
+    Generate queries that will:
+    1. Find official results/data for the specified time period
+    2. Find company announcements or official statements
+    3. Find reliable third-party verification of the results
+    
+    Your queries should focus on finding CONCLUSIVE evidence, even if the pool's decision date hasn't arrived yet.
     
     response must be a JSON object with the following fields, and nothing else:
     {{
-        "evidence_search_queries": ["query1", "query2", "query3"], // List of 3-5 search queries
+        "evidence_search_queries": ["query1", "query2", "query3"], // List of 3-4 search queries
     }}
     """
     )
@@ -121,7 +126,7 @@ def generate_evidence_queries(state: BettingPoolIdeaGraderGraphOutput):
     """
     )
 
-    structured_llm = openai_llm.with_structured_output(EvidenceSearchQueries)
+    structured_llm = perplexity_llm.with_structured_output(EvidenceSearchQueries)
     result = structured_llm.invoke([evidence_search_sys_msg, evidence_search_user_msg])
     print("Evidence search result:", result)
     return {
@@ -159,7 +164,7 @@ def gather_evidence(state: BettingPoolIdeaGraderGraphOutput):
         """
     )
     
-    structured_llm = openai_llm.with_structured_output(Evidence)
+    structured_llm = perplexity_llm.with_structured_output(Evidence)
     
     for query in search_queries:
         search_user_msg = HumanMessage(
@@ -229,48 +234,53 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
     You are a betting pool idea grader with expertise in data analysis and probability assessment.
     
     Your task is to:
-    1. Understand the EXACT question and its closure summary, closure instructions, and closure date
-    2. Review the provided evidence and evaluate its relevance and reliability
-    3. Assign probabilities that reflect your confidence in each option based on the evidence
-    4. Always choose the highest probability option as the result
+    1. Understand the EXACT time period being asked about in the question
+    2. Determine if that time period has already passed, regardless of the pool's decision date
+    3. Review the provided evidence and evaluate its relevance and reliability
+    4. Make a decision based on official/verifiable results when available
     
-    IMPORTANT: 
-    - CAREFULLY COMPARE THE EXACT DATE AND TIME:
-      * Past events: closure datetime is EARLIER than current datetime (compare both date AND time components)
-      * Future events: closure datetime is LATER than current datetime (compare both date AND time components)
-    - For past events (where closure time has passed), if you're not 100% certain of the outcome, distribute probabilities based on your confidence
-    - For future events (where closure time has not yet passed), return "not resolved yet" unless there is high confidence (probability > 0.8) that a decision can be made based on the evidence
-    - For future events that cannot be determined yet, return "not resolved yet" as a result and probabilities of 0 for all options and an empty list of sources
-    - The result must be one of the following: "not resolved yet", "option A", "option B", or "push"
-    - All probabilities must sum to exactly 1.0 for past events and 0 for future events unless a decision is made with high confidence
-    - You MUST include ALL sources used to reach your conclusion in the sources list
-    - Prefer sources that:
-      * Are from reputable news organizations or official websites
-      * Directly address the question
-      * Have recent updates relevant to the closure date
-      * Provide verifiable data or official statements
-
-    Grading guidelines:
-    - High probability (>0.8): Strong evidence for this option, even if the event has not ended
-    - Medium probability (0.3-0.8): Some evidence or reasonable likelihood
-    - Low probability (<0.3): Less likely but still possible
-    - Only assign 1.0 if you have absolute certainty of the outcome
-    - When sources disagree, distribute probabilities to reflect the relative strength and reliability of each source
-    - If neither option A nor option B is the result, return "push" as the result.
-
-    Your response must be ONLY a JSON object. Do not include any explanatory text, markdown formatting, or code blocks:
+    IMPORTANT TIME HANDLING: 
+    - First, identify the specific time period in the question (e.g., "Q1 2024", "January 2024")
+    - If that time period has passed:
+      * Look for official results/data for that specific period
+      * If official results are available, use them to make a decision regardless of the pool's decision date
+      * If official results aren't available yet, return "not resolved yet"
+    - If the time period hasn't passed yet:
+      * Always return "not resolved yet"
+    
+    DECISION GUIDELINES:
+    - Return "option A" or "option B" if:
+      * The time period has passed AND
+      * Official results are available AND
+      * The evidence clearly shows which option is correct
+    - Return "not resolved yet" if:
+      * The time period hasn't passed yet OR
+      * Official results aren't available yet
+    - Return "push" if:
+      * The time period has passed AND
+      * Official results show neither option is correct
+    
+    EVIDENCE EVALUATION:
+    - Prioritize official company reports/announcements
+    - Consider reliable third-party verification
+    - Require multiple sources for confirmation
+    - Check source dates to ensure they cover the correct time period
+    
+    Your response must be ONLY a JSON object with these fields:
     {{
-        "result": "", // the result must be "not resolved yet", "option A", "option B", or "push"
+        "result": "", // "not resolved yet", "option A", "option B", or "push"
         "probabilities": {{
-            // Assign each option a probability between 0.01 and 1.0
-            // Probabilities MUST sum to exactly 1.0 for past events and 0 for future events unless a decision is made with high confidence
-            // Use the exact option names as provided
+            // Probabilities for each option
         }},
         "sources": [
-            // List the URLs of sources that directly address the question
-            // Only include sources that provided relevant information
+            // URLs of sources used
         ],
-        "explanation": "", // Detailed explanation of your reasoning, citing specific evidence from sources
+        "explanation": "", // Include the time period analysis in your explanation
+        "time_period_analysis": {{ 
+            "period_mentioned": "", // e.g., "Q1 2024"
+            "period_has_passed": true/false,
+            "official_results_available": true/false
+        }}
     }}
     """)
 
@@ -296,7 +306,7 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
     CURRENT DATETIME: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
     """)
 
-    structured_llm = openai_llm.with_structured_output(BettingPoolIdeaGraderOutput)
+    structured_llm = perplexity_llm.with_structured_output(BettingPoolIdeaGraderOutput)
     result = structured_llm.invoke([grading_sys_msg, grading_user_msg])
     print("Grading result:", result)
 
@@ -318,7 +328,8 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
             'result_code': result_code,
             'probabilities': result.probabilities,
             'sources': result.sources,
-            'explanation': result.explanation
+            'explanation': result.explanation,
+            'time_period_analysis': result.time_period_analysis
         }
     }
 
@@ -395,7 +406,7 @@ def grade_betting_pool_idea2(betting_pool):
     CURRENT DATETIME: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
     """)
 
-    structured_llm = openai_llm.with_structured_output(BettingPoolIdeaGraderOutput)
+    structured_llm = perplexity_llm.with_structured_output(BettingPoolIdeaGraderOutput)
     result = structured_llm.invoke([grading_sys_msg, grading_user_msg])
     print("Grading result:", result)
 

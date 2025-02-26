@@ -267,6 +267,7 @@ def grade_pool_with_langgraph_agent(agent, pool):
     pool_idea['closure_instructions'] = pool['closureInstructions']
     pool_idea['closure_datetime'] = int(pool['decisionDate'])
     pool_idea['options'] = pool['options']
+    pool_idea['current_datetime'] = datetime.now().timestamp()
 
     idea_grade = agent.invoke(
         {
@@ -274,8 +275,19 @@ def grade_pool_with_langgraph_agent(agent, pool):
         }
     )
 
-    print("idea_grade:", idea_grade)
-    return idea_grade['betting_pool_idea_result']
+    result = idea_grade['betting_pool_idea_result']
+    
+    # Consider both time period analysis and decision date
+    if result.get('time_period_analysis', {}).get('period_has_passed', False) and \
+       result.get('time_period_analysis', {}).get('official_results_available', False):
+        # If the period has passed and we have official results, use them
+        return result
+    elif datetime.fromtimestamp(pool_idea['closure_datetime']) > datetime.now():
+        # If the decision date hasn't passed, stick with "not resolved yet"
+        result['result'] = "not resolved yet"
+        result['probabilities'] = {option: 0 for option in pool['options']}
+        
+    return result
 
 def store_pool_grade(pool_id_str, grade):
     redis_client = get_redis_client()
