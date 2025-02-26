@@ -132,9 +132,20 @@ def extract_topic(state: ResearchGraphOutput):
     
     If they are, respond with the topic. If they are not, respond with an empty string.
     
+    Important guidelines:
+    - Be specific and include key details from the user's message
+    - If the user mentions specific events (like "rain", "snow", "win", etc.), include those in the topic
+    - If the user mentions specific locations or entities, include those
+    - If the user mentions timeframes (like "today", "this week", etc.), include those
+    - The topic should capture the essence of what the user wants to bet on
+    
+    For example:
+    - If the message is "if it will rain in Denver today?", the topic should be "Rain in Denver today"
+    - If the message is "Will the Broncos win their next game?", the topic should be "Broncos winning their next game"
+    
     Your response should be the following JSON object and nothing else. Do not include any other text, any markdown, or any comments.
     {{
-        "topic": "" // The topic for the betting pool if you can determine it, otherwise an empty string
+        "topic": "" // The specific topic for the betting pool if you can determine it, otherwise an empty string
     }}
     """
 
@@ -275,13 +286,15 @@ def generate_betting_pool_idea(state: ResearchGraphOutput):
     <topic>{state.get("topic")}</topic>
     {news_context}
     
-    {'' if state.get('prefer_fast_response') else 'Search for some recent news articles about this topic and then generate an idea for something that users would like to bet on.'}
+    {f'Original user message: <message>{state.get("message")}</message>' if state.get("message") else ''}
     
     ## Generation guidelines
     - You can feel free to remix the topic, but try to keep the same theme.
+    - If the user provided a specific message, prioritize and focus on creating a betting pool that directly addresses their query. Use the news context as reference, but don't feel constrained by it in this case.
     - Your response must be for a pool that can only be resolved in the future. Do not create a pool based on past events.
     - Avoid ambiguity in the betting pool idea. For instance, don't suggest "will a major stock reach 200% in...", instead provide a specific stock to see if it will reach a certain price.
     - Do not generate ideas for known outcomes or for things in the past. Note that the current date is {datetime.now().strftime("%Y-%m-%d")}.
+    - For time-sensitive bets (like weather predictions), use dates that are very close to the current date.
     - You must provide exactly 2 mutually exclusive options. Examples:
       * "Above $500" vs "Below or equal to $500"
       * "Republicans" vs "Democrats"
