@@ -62,6 +62,15 @@ CONTRACT_ABI = [
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "uint256[]", "name": "betIds", "type": "uint256[]"}
+        ],
+        "name": "claimPayouts",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
     }
 ]
 
@@ -221,6 +230,7 @@ def fetch_pending_pools():
     query {
       pools(where: {status: "PENDING"}) {
         id
+        poolIntId
         status
         question
         options
@@ -248,6 +258,7 @@ def fetch_pending_pools():
         if response is not None:
             print(f"Response content: {response.content}")
         return []
+    
 
 def grade_pool_with_langgraph_agent(agent, pool):
     pool_idea = {}
@@ -298,3 +309,75 @@ def call_grade_pool_contract(pool_id):
         return receipt
     except Exception as e:
         raise Exception(f"Error calling gradeBet contract: {str(e)}")
+    
+def call_payout_bets_contract(bet_ids):
+    try:
+        # Build the transaction
+        tx = CONTRACT.functions.claimPayouts(
+            bet_ids
+        ).build_transaction({
+            'from': ACCOUNT.address,
+            'nonce': w3.eth.get_transaction_count(ACCOUNT.address),
+            'gas': GAS_LIMIT,
+            'gasPrice': w3.eth.gas_price
+        })
+
+        # Sign the transaction
+        signed_tx = w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
+
+        # Send the transaction
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+
+        # Wait for the transaction receipt
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+
+        print(f"Grading pool transaction successful with hash: {tx_hash.hex()}, receipt: {receipt}")
+        return receipt
+    except Exception as e:
+        raise Exception(f"Error calling gradeBet contract: {str(e)}")
+
+
+def fetch_bets_for_pool(pool_id):
+    """
+    Fetches bets for a specific pool from the GraphQL endpoint.
+    
+    Args:
+        pool_id (int): The pool ID to fetch bets for
+        
+    Returns:
+        list: List of bets for the specified pool
+    """
+    query = """
+    query($poolId: Int!) {
+      bets(where: {poolIntId: $poolId}) {
+        id
+        betIntId
+        poolIntId
+        payoutClaimed
+      }
+    }
+    """
+    
+    variables = {
+        "poolId": pool_id
+    }
+
+    try:
+        # Send the POST request
+        print(f"Fetching bets for pool {pool_id}")
+        response = requests.post(SUBGRAPH_URL, json={
+            'query': query,
+            'variables': variables
+        })
+        response.raise_for_status()
+
+        # Parse the JSON response
+        data = response.json()
+        
+        # Return the bets
+        return data['data']['bets']
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {e}")
+        if response is not None:
+            print(f"Response content: {response.content}")
+        return []

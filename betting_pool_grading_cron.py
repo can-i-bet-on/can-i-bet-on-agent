@@ -1,4 +1,4 @@
-from betting_pool_core import fetch_pending_pools, grade_pool_with_langgraph_agent, store_pool_grade, call_grade_pool_contract
+from betting_pool_core import call_payout_bets_contract, fetch_bets_for_pool, fetch_pending_pools, grade_pool_with_langgraph_agent, store_pool_grade, call_grade_pool_contract
 from betting_idea_grader import betting_pool_idea_grader_agent
 import logging
 import time
@@ -32,8 +32,9 @@ def grade_pending_pools():
         logging.info(f"Found {len(pending_pools)} pending pools")
 
         # for testing
-        # pending_pools = [pending_pools[3]]
+        pending_pools = [pending_pools[0]]
 
+        graded_pools = []
         # Process each pool
         for pool in pending_pools:
             pool_id_hex = pool['id']
@@ -51,6 +52,9 @@ def grade_pending_pools():
                         grade_result = grade_pool_with_langgraph_agent(betting_pool_idea_grader_agent, pool)
                         logging.info(f"Pool {pool_id_hex} graded with result: {grade_result}")
 
+                        # for testing
+                        grade_result['result_code'] = 1
+
                         # Store the grade in Redis
                         if grade_result['result_code'] not in [4]: # 0 = "not yet resolved", 4 = "error"
                             if grade_result['result_code'] == 0:
@@ -60,8 +64,9 @@ def grade_pending_pools():
                                 logging.info(f"Stored grade for pool {pool_id_hex}")
 
                                 # call the contract to update the pool
-                                call_grade_pool_contract(int(pool_id_hex, 16))
-                            
+                                pool_id_int = int(pool_id_hex, 16)
+                                call_grade_pool_contract(pool_id_int)
+                                graded_pools.append(pool_id_int)
                             break
                         else:
                             logging.error(f"Error grading pool {pool_id_hex}. Trying again...")
@@ -75,10 +80,35 @@ def grade_pending_pools():
                             logging.error(f"Error processing pool {pool_id_hex}: {str(e)}. Giving up.")
                             break
 
+        return graded_pools
+
     except Exception as e:
         logging.error(f"Error in grade_pending_pools: {str(e)}")
 
+def pay_out_bets(graded_pools):
+    """
+    Pay out bets for each pool
+    """
+    bets_to_pay_out = []    
+    for pool_id in graded_pools:
+        bets = fetch_bets_for_pool(int(pool_id))
+        for bet in bets:
+            bets_to_pay_out.append(int(bet['betIntId']))
+                
+    print(f"bets_to_pay_out: {bets_to_pay_out}")
+    if bets_to_pay_out:
+        call_payout_bets_contract(bets_to_pay_out)
+
+
 if __name__ == "__main__":
     logging.info("Starting pools grading cron job")
-    grade_pending_pools()
+    graded_pools = grade_pending_pools()
     logging.info("Finished pools grading cron job") 
+
+    logging.info(f"Graded pools: {graded_pools}")
+
+    if len(graded_pools) > 0:
+        time.sleep(10 * 60)
+        logging.info(f"Starting paying out bets")
+        pay_out_bets(graded_pools)
+        logging.info(f"Finished paying out bets")
