@@ -11,12 +11,6 @@ from twitter_post import post_tweet_using_redis_token
 # Load environment variables
 load_dotenv()
 
-# ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN")
-# ACCESS_TOKEN_SECRET = os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
-# REFRESH_TOKEN = os.getenv("TWITTER_REFRESH_TOKEN")
-# CLIENT_ID = os.getenv("TWITTER_CLIENT_ID")
-# CLIENT_SECRET = os.getenv("TWITTER_CLIENT_SECRET")
-
 TWITTERAPI_BASE_URL = "https://api.twitterapi.io/twitter"
 TWITTERAPI_API_KEY = os.getenv("TWITTERAPI_API_KEY")
 FRONTEND_URL_PREFIX = os.getenv("FRONTEND_URL_PREFIX")

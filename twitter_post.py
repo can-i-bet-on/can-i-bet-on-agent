@@ -8,13 +8,16 @@ import base64
 # Load environment variables
 load_dotenv()
 
-# Twitter API configuration
-CLIENT_ID = os.getenv('TWITTER_CLIENT_ID')
-CLIENT_SECRET = os.getenv('TWITTER_CLIENT_SECRET')
+def get_twitter_client_vars(redis_client):
+    client_id = redis_client.get('TWITTER_CLIENT_ID')
+    client_secret = redis_client.get('TWITTER_CLIENT_SECRET')
+    return client_id, client_secret
 
 def refresh_twitter_tokens(refresh_token):
+    redis_client = get_redis_client()
+    client_id, client_secret = get_twitter_client_vars(redis_client)
     """Refresh both access and refresh tokens using the Twitter API."""
-    auth = f"{CLIENT_ID}:{CLIENT_SECRET}"
+    auth = f"{client_id}:{client_secret}"
     auth_bytes = auth.encode('ascii')
     auth_b64 = base64.b64encode(auth_bytes).decode('ascii')
     
@@ -65,7 +68,7 @@ def post_tweet(access_token, message, in_reply_to_id=None):
 
 def refresh_and_store_tokens(redis_client):
     """Refresh tokens and store them in Redis."""
-    current_refresh_token = redis_client.get('REFRESH_TOKEN')
+    current_refresh_token = redis_client.get('TWITTER_REFRESH_TOKEN')
     if not current_refresh_token:
         raise Exception("No refresh token found in Redis")
     
@@ -75,8 +78,8 @@ def refresh_and_store_tokens(redis_client):
     
     # Store new tokens in Redis with 90-day expiration
     expiration = int(timedelta(days=90).total_seconds())
-    redis_client.set('ACCESS_TOKEN', new_tokens['access_token'], ex=expiration)
-    redis_client.set('REFRESH_TOKEN', new_tokens['refresh_token'], ex=expiration)
+    redis_client.set('TWITTER_ACCESS_TOKEN', new_tokens['access_token'], ex=expiration)
+    redis_client.set('TWITTER_REFRESH_TOKEN', new_tokens['refresh_token'], ex=expiration)
     print("Successfully stored new tokens in Redis")
     
     return new_tokens['access_token']
@@ -87,7 +90,7 @@ def post_tweet_using_redis_token(tweet_text, in_reply_to_id=None):
         redis_client = get_redis_client()
         
         # Attempt to post the tweet
-        access_token = redis_client.get('ACCESS_TOKEN')
+        access_token = redis_client.get('TWITTER_ACCESS_TOKEN')
         result = post_tweet(access_token, tweet_text, in_reply_to_id)
         print(f"Successfully posted tweet! Tweet ID: {result['data']['id']}")
         return result['data']['id']
@@ -115,7 +118,7 @@ def main():
         redis_client = get_redis_client()
         
         # Get current tokens from Redis
-        current_refresh_token = redis_client.get('REFRESH_TOKEN')
+        current_refresh_token = redis_client.get('TWITTER_REFRESH_TOKEN')
         if not current_refresh_token:
             raise Exception("No refresh token found in Redis")
         
@@ -125,8 +128,8 @@ def main():
         
         # Store new tokens in Redis with 90-day expiration
         expiration = int(timedelta(days=90).total_seconds())
-        redis_client.set('ACCESS_TOKEN', new_tokens['access_token'], ex=expiration)
-        redis_client.set('REFRESH_TOKEN', new_tokens['refresh_token'], ex=expiration)
+        redis_client.set('TWITTER_ACCESS_TOKEN', new_tokens['access_token'], ex=expiration)
+        redis_client.set('TWITTER_REFRESH_TOKEN', new_tokens['refresh_token'], ex=expiration)
         print("Successfully stored new tokens in Redis")
         
         # Post tweet with current timestamp
