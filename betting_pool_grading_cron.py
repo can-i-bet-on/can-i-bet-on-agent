@@ -32,7 +32,7 @@ def grade_pending_pools():
         logging.info(f"Found {len(pending_pools)} pending pools")
 
         # for testing
-        pending_pools = [pending_pools[0]]
+        # pending_pools = [pending_pools[0]]
 
         graded_pools = []
         # Process each pool
@@ -53,11 +53,11 @@ def grade_pending_pools():
                         logging.info(f"Pool {pool_id_hex} graded with result: {grade_result}")
 
                         # for testing
-                        grade_result['result_code'] = 1
+                        # grade_result['result_code'] = 1
 
                         # Store the grade in Redis
-                        if grade_result['result_code'] not in [4]: # 0 = "not yet resolved", 4 = "error"
-                            if grade_result['result_code'] == 0:
+                        if grade_result['result_code'] not in [4]: # 4 = "error"
+                            if grade_result['result_code'] == 0: # 0 = "not yet resolved"
                                 logging.info(f"Pool {pool_id_hex} is not yet resolved")
                             else:
                                 store_pool_grade(pool_id_hex, grade_result['result_code'])
