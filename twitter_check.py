@@ -75,14 +75,18 @@ async def poll_tweet_mentions():
 
 async def propose_bet(tweet_data: Tweet):
 		redis_client = get_redis_client()
-		original_tweet = None
-		if tweet_data.is_reply:
-				original_tweet = pull_tweet(tweet_data.in_reply_to_id)
+		thread_text = []
+		current_tweet = tweet_data
+		while current_tweet.is_reply:
+				prior_tweet = pull_tweet(current_tweet.in_reply_to_id)
+				thread_text.append(f"@{prior_tweet.author.user_name}: {prior_tweet.text}")
+				current_tweet = prior_tweet
 
-		print(f"Proposing bet for new tweet from @{tweet_data.author.user_name}: {tweet_data.text}", f"replying to {original_tweet.text}" if original_tweet else "")
+
+		print(f"Proposing bet for new tweet from @{tweet_data.author.user_name}: {tweet_data.text}", f"replying to thread: {"\n----------\n".join(thread_text)}" if len(thread_text) > 0 else "")
 		try:
 				# Call the Langraph agent
-				langgraph_agent_response = await call_langgraph_agent(betting_pool_idea_generator_agent, tweet_data.text, original_tweet.text if original_tweet else "")
+				langgraph_agent_response = await call_langgraph_agent(betting_pool_idea_generator_agent, tweet_data.text, "\n----------\n".join(thread_text))
 				print(f"langgraph_agent_response: {langgraph_agent_response}")
 								# Use the new function to create pool_data
 				pool_data = create_pool_data(langgraph_agent_response, tweet_data.author.user_name, tweet_data.author.author_id)
@@ -90,9 +94,8 @@ async def propose_bet(tweet_data: Tweet):
 				print("created pool", pool_id)
 
 				redis_client.sadd("reviewed_tweets", tweet_data.tweet_id)
-				reply_tweet_text = generate_tweet_content(pool_id, pool_data, FRONTEND_URL_PREFIX)
-				post_tweet_using_redis_token(reply_tweet_text, tweet_data.tweet_id)
-				timeline_post_id = post_tweet_using_redis_token(reply_tweet_text)
+				quote_tweet_text = generate_tweet_content(pool_id, pool_data, FRONTEND_URL_PREFIX)
+				timeline_post_id = post_tweet_using_redis_token(f"{quote_tweet_text}\n{tweet_data.url}")
 				if timeline_post_id is not None:
 					set_twitter_post_id(pool_id, timeline_post_id)
 				return langgraph_agent_response

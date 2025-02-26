@@ -54,7 +54,7 @@ smol_llm = ChatOpenAI(
     # base_url="https://openrouter.ai/api/v1",
     model="gpt-4o",
     # model="perplexity/sonar-medium-online",
-    temperature=0,
+    temperature=0.3,
     api_key=os.getenv("OPENAI_API_KEY"),
 )
 
@@ -62,7 +62,7 @@ big_llm =  ChatOpenAI(
     # base_url="https://openrouter.ai/api/v1",
     model="gpt-4o",
     # model="perplexity/sonar-medium-online",
-    temperature=0,
+    temperature=0.3,
     api_key=os.getenv("OPENAI_API_KEY"),
 )
 

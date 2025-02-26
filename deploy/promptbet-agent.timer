@@ -2,7 +2,7 @@
 Description=Execute promptbet check every 30 s
 
 [Timer]
-OnCalendar=*:*:00/30
+OnCalendar=*:*:00/10
 AccuracySec=1s
 OnBootSec=10s
 Unit=promptbet-agent.service

@@ -26,6 +26,7 @@ ssh "$deploy_acct" <<ENDSSH
 	sudo cp deploy/promptbet-agent.timer /etc/systemd/system/promptbet-agent.timer
 	sudo cp deploy/promptbet-agent-grader.service /etc/systemd/system/promptbet-agent-grader.service
 	sudo cp deploy/promptbet-agent-grader.timer /etc/systemd/system/promptbet-agent-grader.timer
+	sudo systemctl daemon-reload
 ENDSSH
 
 # docker compose down
