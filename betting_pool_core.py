@@ -5,6 +5,7 @@ import urllib.parse
 from dotenv import load_dotenv
 from db.redis import get_redis_client
 import requests
+from twitter_post import post_tweet_using_redis_token
 
 # Load environment variables
 load_dotenv()
@@ -142,7 +143,7 @@ def create_pool(pool_data):
     except Exception as e:
         raise Exception(f"Error creating pool: {str(e)}")
 
-def generate_tweet_content(pool_id, pool_data, frontend_url_prefix):
+def generate_market_creation_tweet_content(pool_id, pool_data, frontend_url_prefix):
     if pool_id is not None:
                 # Convert to hex, remove '0x' prefix, ensure even length with zero padding, then add '0x' back
         hex_without_prefix = hex(pool_id)[2:]  # Remove '0x' prefix
@@ -163,6 +164,62 @@ def generate_tweet_content(pool_id, pool_data, frontend_url_prefix):
         return tweet_text
     else:
         return None
+    
+def generate_market_close_tweet_content(pool_id, pool_data, frontend_url_prefix, original_tweet_id, grade_result):
+    """
+    Generate tweet content for market closure, quoting the original tweet.
+    
+    Args:
+        pool_id (int): The pool ID
+        pool_data (dict): Pool data containing question and options
+        frontend_url_prefix (str): URL prefix for the frontend
+        original_tweet_id (str): ID of the original market creation tweet
+        grade_result (dict): Result from grading containing the outcome
+        
+    Returns:
+        str: Formatted tweet content
+    """
+
+    if pool_id is not None:
+        # Convert to hex, remove '0x' prefix, ensure even length with zero padding, then add '0x' back
+        hex_without_prefix = hex(pool_id)[2:]  # Remove '0x' prefix
+        if len(hex_without_prefix) % 2 != 0:
+            hex_without_prefix = '0' + hex_without_prefix
+        pool_id_hex = '0x' + hex_without_prefix
+        full_url = f"{frontend_url_prefix}{pool_id_hex}"
+        
+        # Get the result text
+        result_text = ""
+        if grade_result['result'] == "option A":
+            result_text = f"Option A wins: {pool_data['options'][0]}"
+        elif grade_result['result'] == "option B":
+            result_text = f"Option B wins: {pool_data['options'][1]}"
+        elif grade_result['result'] == "push":
+            result_text = "Market resulted in a push"
+        else:
+            return None
+            
+        # Format the tweet
+        tweet_text = (
+            f"🎯 Market Closed!\n\n"
+            f"Q: {pool_data['question']}\n"
+            f"Result: {result_text}\n\n"
+            f"View details: {full_url}\n\n"
+            f"https://twitter.com/user/status/{original_tweet_id}"
+        )
+        
+        return tweet_text
+    else:
+        return None
+    
+def post_close_market_tweets(graded_pools_with_results, frontend_url_prefix):
+    for pool_id, grade_result in graded_pools_with_results.items():
+        pool_data = grade_result['pool_data']
+        if int(pool_data['totalBets']) > 0:
+            original_tweet_id = pool_data['xPostId']
+            tweet_text = generate_market_close_tweet_content(pool_id, pool_data, frontend_url_prefix, original_tweet_id, grade_result)
+            post_tweet_using_redis_token(tweet_text)
+            print("Posted closed market tweet for pool {pool_id}")
 
 def create_pool_data(langgraph_agent_response, creator_name, creator_id):
     betting_pool_data = langgraph_agent_response['betting_pool_idea']
@@ -238,6 +295,8 @@ def fetch_pending_pools():
         decisionDate
         closureCriteria
         closureInstructions
+        totalBets
+        xPostId
       }
     }
     """

@@ -3,7 +3,7 @@ import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes
 from dotenv import load_dotenv
-from betting_pool_core import call_langgraph_agent, create_pool, generate_tweet_content, generate_twitter_intent_url, create_pool_data, set_twitter_post_id
+from betting_pool_core import call_langgraph_agent, create_pool, generate_market_creation_tweet_content, generate_twitter_intent_url, create_pool_data, set_twitter_post_id
 from betting_pool_generator import betting_pool_idea_generator_agent
 from twitter_post import post_tweet_using_redis_token
 
@@ -18,7 +18,7 @@ GENERATE_BETTING_POOL_COMMAND = f"generate_betting_pool_idea{LOCAL_DEV_IDENTIFIE
 
 async def share_pool(update: Update, context: ContextTypes.DEFAULT_TYPE, pool_id: str, pool_data: dict):
     try:
-        tweet_text = generate_tweet_content(pool_id, pool_data, FRONTEND_URL_PREFIX)
+        tweet_text = generate_market_creation_tweet_content(pool_id, pool_data, FRONTEND_URL_PREFIX)
                
         # Post the tweet to the timeline using the existing method
         tweet_id = post_tweet_using_redis_token(tweet_text)

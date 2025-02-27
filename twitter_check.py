@@ -3,7 +3,7 @@ import asyncio
 from dotenv import load_dotenv
 from datetime import timezone, datetime
 from api.twitterapi.tweets import Tweet, twitterapi_get
-from betting_pool_core import call_langgraph_agent, create_pool, create_pool_data, generate_tweet_content, set_twitter_post_id
+from betting_pool_core import call_langgraph_agent, create_pool, create_pool_data, generate_market_creation_tweet_content, set_twitter_post_id
 from betting_pool_generator import betting_pool_idea_generator_agent
 from db.redis import get_redis_client
 from twitter_post import post_tweet_using_redis_token
@@ -88,7 +88,7 @@ async def propose_bet(tweet_data: Tweet):
 				print("created pool", pool_id)
 
 				redis_client.sadd("reviewed_tweets", tweet_data.tweet_id)
-				quote_tweet_text = generate_tweet_content(pool_id, pool_data, FRONTEND_URL_PREFIX)
+				quote_tweet_text = generate_market_creation_tweet_content(pool_id, pool_data, FRONTEND_URL_PREFIX)
 				timeline_post_id = post_tweet_using_redis_token(f"{quote_tweet_text}\n{tweet_data.url}")
 				if timeline_post_id is not None:
 					set_twitter_post_id(pool_id, timeline_post_id)

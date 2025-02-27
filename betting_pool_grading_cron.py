@@ -1,9 +1,10 @@
-from betting_pool_core import call_payout_bets_contract, fetch_bets_for_pool, fetch_pending_pools, grade_pool_with_langgraph_agent, store_pool_grade, call_grade_pool_contract
+from betting_pool_core import call_payout_bets_contract, fetch_bets_for_pool, fetch_pending_pools, grade_pool_with_langgraph_agent, post_close_market_tweets, store_pool_grade, call_grade_pool_contract
 from betting_idea_grader import betting_pool_idea_grader_agent
 import logging
 import time
 from datetime import datetime
 from dotenv import load_dotenv
+import os
 
 # Load environment variables
 load_dotenv()
@@ -17,6 +18,8 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+
+FRONTEND_URL_PREFIX = os.getenv('FRONTEND_URL_PREFIX')  
 
 def grade_pending_pools():
     """
@@ -33,8 +36,10 @@ def grade_pending_pools():
 
         # for testing
         # pending_pools = [pending_pools[0]]
+        pending_pools = [pool for pool in pending_pools if pool['id'] == '0x26']
+        print(f"pending_pools: {pending_pools}")
 
-        graded_pools = []
+        graded_pools = {}
         # Process each pool
         for pool in pending_pools:
             pool_id_hex = pool['id']
@@ -52,6 +57,9 @@ def grade_pending_pools():
                         grade_result = grade_pool_with_langgraph_agent(betting_pool_idea_grader_agent, pool)
                         logging.info(f"Pool {pool_id_hex} graded with result: {grade_result}")
 
+                        # Set pool data to grade_result for processing
+                        grade_result['pool_data'] = pool
+
                         # for testing
                         # grade_result['result_code'] = 1
 
@@ -66,7 +74,7 @@ def grade_pending_pools():
                                 # call the contract to update the pool
                                 pool_id_int = int(pool_id_hex, 16)
                                 call_grade_pool_contract(pool_id_int)
-                                graded_pools.append(pool_id_int)
+                                graded_pools[pool_id_int] = grade_result
                             break
                         else:
                             logging.error(f"Error grading pool {pool_id_hex}. Trying again...")
@@ -108,7 +116,11 @@ if __name__ == "__main__":
     logging.info(f"Graded pools: {graded_pools}")
 
     if len(graded_pools) > 0:
+        print(f"graded_pools: {graded_pools}")
         time.sleep(10 * 60)
         logging.info(f"Starting paying out bets")
-        pay_out_bets(graded_pools)
+        pay_out_bets(list(graded_pools.values()))
         logging.info(f"Finished paying out bets")
+
+        logging.info("Tweeting for the graded pools")
+        post_close_market_tweets(graded_pools, FRONTEND_URL_PREFIX)
