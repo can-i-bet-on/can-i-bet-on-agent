@@ -1,0 +1,10 @@
+[Unit]
+Description=PromptBet Agent
+
+[Service]
+Type=simple
+ExecStart=/home/ubuntu/promptbet-agent/deploy/telegram.sh
+Environment="PATH=/home/ubuntu/promptbet-agent/.venv/bin:$PATH"
+
+[Install]
+WantedBy=multi-user.target
