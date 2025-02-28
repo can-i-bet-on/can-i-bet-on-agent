@@ -84,7 +84,7 @@ def grade_pending_pools():
                         logging.error(f"Error processing pool {pool_id_hex}: {str(e)}. Trying again...")
                         retry_count += 1
                     finally:
-                        if retry_count > 3:
+                        if retry_count > 2:
                             logging.error(f"Error processing pool {pool_id_hex}: {str(e)}. Giving up.")
                             break
 
@@ -115,7 +115,7 @@ if __name__ == "__main__":
 
     logging.info(f"Graded pools: {graded_pools}")
 
-    if len(graded_pools) > 0:
+    if graded_pools:
         print(f"graded_pools: {graded_pools}")
         time.sleep(10 * 60)
         logging.info(f"Starting paying out bets")

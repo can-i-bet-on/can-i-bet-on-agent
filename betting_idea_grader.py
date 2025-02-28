@@ -126,7 +126,7 @@ def generate_evidence_queries(state: BettingPoolIdeaGraderGraphOutput):
     """
     )
 
-    structured_llm = perplexity_llm.with_structured_output(EvidenceSearchQueries)
+    structured_llm = openai_llm.with_structured_output(EvidenceSearchQueries)
     result = structured_llm.invoke([evidence_search_sys_msg, evidence_search_user_msg])
     print("Evidence search result:", result)
     return {
