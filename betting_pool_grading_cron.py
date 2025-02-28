@@ -36,7 +36,7 @@ def grade_pending_pools():
 
         # for testing
         # pending_pools = [pending_pools[0]]
-        pending_pools = [pool for pool in pending_pools if pool['id'] == '0x26']
+        # pending_pools = [pool for pool in pending_pools if pool['id'] == '0x26']
         print(f"pending_pools: {pending_pools}")
 
         graded_pools = {}
