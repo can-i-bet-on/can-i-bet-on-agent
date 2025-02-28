@@ -149,7 +149,7 @@ def generate_market_creation_tweet_content(pool_id, pool_data, frontend_url_pref
         hex_without_prefix = hex(pool_id)[2:]  # Remove '0x' prefix
         if len(hex_without_prefix) % 2 != 0:
             hex_without_prefix = '0' + hex_without_prefix
-        pool_id_hex = '0x' + hex_without_prefix
+        pool_id_hex = '0x' + hex_without_prefix + '00'
         full_url = f"{frontend_url_prefix}{pool_id_hex}"
         
         # Format the tweet using the passed pool_data
