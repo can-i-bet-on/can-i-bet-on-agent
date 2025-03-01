@@ -36,7 +36,7 @@ def grade_pending_pools():
 
         # for testing
         # pending_pools = [pending_pools[0]]
-        # pending_pools = [pool for pool in pending_pools if pool['id'] == '0x26']
+        # pending_pools = [pool for pool in pending_pools if pool['id'] == '0x24']
         print(f"pending_pools: {pending_pools}")
 
         graded_pools = {}
@@ -117,9 +117,9 @@ if __name__ == "__main__":
 
     if graded_pools:
         print(f"graded_pools: {graded_pools}")
-        time.sleep(10 * 60)
+        time.sleep(1 * 60)
         logging.info(f"Starting paying out bets")
-        pay_out_bets(list(graded_pools.values()))
+        pay_out_bets(list(graded_pools.keys()))
         logging.info(f"Finished paying out bets")
 
         logging.info("Tweeting for the graded pools")

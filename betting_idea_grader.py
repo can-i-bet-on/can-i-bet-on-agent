@@ -101,7 +101,7 @@ def generate_evidence_queries(state: BettingPoolIdeaGraderGraphOutput):
     
     response must be a JSON object with the following fields, and nothing else:
     {{
-        "evidence_search_queries": ["query1", "query2", "query3"], // List of 3-4 search queries
+        "evidence_search_queries": ["query1", "query2", "query3"], // List of 3 search queries
     }}
     """
     )
