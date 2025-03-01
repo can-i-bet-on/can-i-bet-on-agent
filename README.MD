@@ -32,6 +32,8 @@
 
 ### Bet creation flow
 
+![Bet creation flow](./docs/betting-pool-agent.jpg)
+
 1. User mentions @CanIBetOn on X, or our Telegram bot asking it to generate a betting pool. User can optionally provide specific instructions or a general concept for the betting pool.
 2. Bot will derive a topic and options for users to bet on. If it cannot derive enough key details from the user's message, it will fetch current events from a news API and use those to generate a betting pool
 3. Bot will create a betting pool on the contract with the given topic and options on the contract.
@@ -39,6 +41,8 @@
 4. Bot will respond with a retweet on X, or a reply on Telegram, giving the user a link to the betting pool.
 
 ### Bet grading flow
+
+![Bet grading flow](./docs/pool-grading-agent.jpg)
 
 1. Cron job runs every 10 minutes
    1. Fetch all bets that are not graded with bets closed in past from subgraph
