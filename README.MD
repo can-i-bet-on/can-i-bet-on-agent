@@ -1,4 +1,44 @@
-### Bet grading flow:
+# Can I Bet On? - Agent
+
+![Can I Bet On? Hero](./docs/canibeton-hero.png)
+
+## Features
+
+- 🤖 Create a betting pool out of anything w/ our custom agents
+- 🔄 Automated grading using LangGraph agents
+- 🐦 X (Twitter) integration for pool creation
+- 💬 Telegram bot interface
+- ⛓️ Chainlink Functions integration for decentralized grading
+- 📊 Subgraph indexing for frontend display
+
+## Contents
+
+- [./api/twitterapi.py](./api/twitterapi.py) - Tools for querying X
+- [./betting_pool_generator.py](./betting_pool_generator.py) - Agent for generating betting pools
+- [./telegram_bot.py](./telegram_bot.py) - Telegram interface for creating betting pools
+- [./twitter_post.py](./twitter_post.py) - Tools for posting to X
+- [./twitter_post.py](./twitter_check.py) - Tools for parsing and handling mentions from X
+
+- [Functionality](#functionality)
+- [Deployment](#deployment)
+- [Local Development](#local-development)
+
+## Key tech
+
+- [LangChain + LangGraph](https://www.langchain.com/langgraph) - Our agent code for handling the betting pool generation and grading flow
+- [Chainlink Functions](https://chain.link/functions) - Has some interoperability with the grading agent for closing pools
+
+## Functionality
+
+### Bet creation flow
+
+1. User mentions @CanIBetOn on X, or our Telegram bot asking it to generate a betting pool. User can optionally provide specific instructions or a general concept for the betting pool.
+2. Bot will derive a topic and options for users to bet on. If it cannot derive enough key details from the user's message, it will fetch current events from a news API and use those to generate a betting pool
+3. Bot will create a betting pool on the contract with the given topic and options on the contract.
+4. The indexer picks up the new betting pool and adds it to the subgraph for rendering in the frontend
+4. Bot will respond with a retweet on X, or a reply on Telegram, giving the user a link to the betting pool.
+
+### Bet grading flow
 
 1. Cron job runs every 10 minutes
    1. Fetch all bets that are not graded with bets closed in past from subgraph
@@ -43,6 +83,7 @@
 - your server/container must have python 3.12 or greater installed
 - after the first deploy attempt, run `python3 -m venv .venv` in the project folder
 - after the deploy.sh script runs without errors you will need to activate the systemd timers
+
   ```
   sudo systemctl daemon-reload
   sudo systemctl enable promptbet-agent.timer
