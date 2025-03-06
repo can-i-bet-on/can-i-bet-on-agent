@@ -8,6 +8,7 @@ import os
 
 # Load environment variables
 load_dotenv()
+FRONTEND_URL_PREFIX = os.getenv("FRONTEND_URL_PREFIX")
 
 # Configure logging
 logging.basicConfig(
@@ -19,7 +20,6 @@ logging.basicConfig(
     ]
 )
 
-FRONTEND_URL_PREFIX = os.getenv('FRONTEND_URL_PREFIX')  
 
 def grade_pending_pools():
     """
@@ -35,8 +35,6 @@ def grade_pending_pools():
         logging.info(f"Found {len(pending_pools)} pending pools")
 
         # for testing
-        # pending_pools = [pending_pools[0]]
-        # pending_pools = [pool for pool in pending_pools if pool['id'] == '0x26']
         print(f"pending_pools: {pending_pools}")
 
         graded_pools = {}

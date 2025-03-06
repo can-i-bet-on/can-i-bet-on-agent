@@ -11,9 +11,10 @@ from langchain_core.messages import SystemMessage
 from langgraph.graph import END, START, MessagesState, StateGraph
 import os
 from db.betting_pool_db import BettingPoolDB
-import requests
 from langchain_community.tools.tavily_search import TavilySearchResults
 import random
+
+from tools.news import get_news_for_topic
 
 load_dotenv()
 
@@ -70,53 +71,6 @@ perplexity_llm = ChatOpenAI(
     api_key=os.getenv("PPLX_API_KEY"),
 )
 
-# llm = ChatAnthropic(
-#     model="claude-3-5-haiku-20241022",
-#     # model="claude-3-5-sonnet-20241022",
-#     temperature=0,
-# )
-
-
-# TODO wire this up
-def generate_betting_pool_idea_from_seed(state: ResearchGraphOutput):
-    # Take a given message, website, tweet, etc and propose a betting bool idea based on the tweet.
-    user1 = "@cosmic_ferris_wheel"
-    user2 = "@KuphJr"
-    user3 = "@lejohndary"
-    user4 = "@can"  # TODO I couldn't figure out how to  get 4th team member's username in telegram, not sure if this is right
-    bot = "@HalluciBetrBot"
-
-    prompt = f"""
-    The user has asked you to generate a betting pool with this message:
-    <message>{state.get("message")}</message>
-    
-    Examples:
-    {user1}: I'm supposed to fly into Denver from New York on the 21st, but there's going to be a big storm the night before my flight, so the airlines are already telling me to expect delays.
-    {user2}: @HalluciBetrBot, create a betting pool on ^^^
-    {bot}: Sure, I can do that. How does this sound: 
-        Idea: "Will {user1}'s flight to Denver on the 21st be delayed due to weather?"
-        Options: Yes, No
-        Closure summary: We will check the weather on the 20th and see if any flights from NYC to Denver are delayed.
-        Closure instructions: We will first check if {user1}'s communicated that their flight was delayed in this channel proactively. We will then check the weather on the 20th and see if any flights from NYC to Denver are delayed. If the user has said that their flight is delayed and we see that flights from NYC to Denver are generally delayed, we will return "Yes". Otherwise, we will return "No".
-
-    {user2}: I'm going to the gym tomorrow, but I'm not sure if I'll be able to lift 200lbs.
-    {user3}: @HalluciBetrBot, create a betting pool on ^^^
-    {bot}: Sure, I can do that. How does this sound: 
-        Idea: "Will {user1} be able to lift 200lbs tomorrow?"
-        Options: Yes, No
-        Closure summary: We will check {user1}'s gym log tomorrow and see if they can lift 200lbs.
-        Closure instructions: We will scan {user1}'s public MyFitnessPal profile to see what weights they logged. If we do not find a log, we will instead check this channel in telegram. If we find nothing in telegram, we will DM {user1}'s associates, @{user2} and @{user3} to see if they know. If any of these sources confirm the 200lbs lift, we will return "Yes". Otherwise, we will return "No"
-        
-    
-    Analyze the message and try to determine if the user is asking us to generate a betting pool for a specific topic or theme.
-    1. First extract the idea. What are they going to bet on? Is there an item in the text that could have multiple outcomes (typically YES or NO)? 
-    2. Then try to extract the possible outcomes from the idea. Initially, unless the user specifies options explicitly, you should try to extract a simple YES or NO outcome.
-    3. Then try to figure out what conditions would determine a winner for the bet. Is there a date in which we'll know the outcome? Is there a specific event that will happen that will trigger this?
-    4. Finally generate instructions fo a future agent to figure out which option won. Focus on things you can confirm digitally and try to avoid relying on a human to judge when possible.
-    """
-
-
-
 def extract_topic(state: ResearchGraphOutput):
     """Extract the topic from the state"""
     prompt = f"""
@@ -149,58 +103,6 @@ def extract_topic(state: ResearchGraphOutput):
     print("extracted topic:", topic)
 
     return {"topic": topic.topic}
-
-
-def get_news_search_query(topic: str) -> str:
-    """Generate an optimized search query from the topic"""
-    prompt = f"""
-    I need to search for news articles about this topic:
-    "{topic}"
-
-    Please generate a short, focused search query that would work well with a news API.
-    The query should:
-    - Be 1-3 words maximum
-    - Focus on the key searchable terms
-    - Remove any unnecessary context or descriptive words
-    - Be optimized for finding relevant news articles
-
-    Your response should be the following JSON object and nothing else. Do not include any other text, any markdown, or any comments.
-    {{
-        "search_query": "" // The optimized search query
-    }}
-    """
-
-    structured_llm = smol_llm.with_structured_output(NewsSearchQuery)
-    result = structured_llm.invoke(prompt)
-    return result.search_query
-
-
-def get_news_for_topic(topic: str) -> list[str]:
-    """Get relevant news articles for the topic"""
-    api_key = os.getenv("NEWS_API_KEY")
-    if not api_key:
-        print("Warning: NEWS_API_KEY not found in environment")
-        return []
-
-    try:
-        # First get an optimized search query
-        search_query = get_news_search_query(topic)
-        print(f"Using search query: {search_query}")
-
-        url = f"https://newsapi.org/v2/everything?q={search_query}&apiKey={api_key}&pageSize=3"
-        print(f"Fetching news from: {url}")
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-
-        articles = data.get("articles", [])
-        return [
-            f"Title: {article['title']}\nDescription: {article['description']}"
-            for article in articles
-        ]
-    except Exception as e:
-        print(f"Error fetching news: {e}")
-        return []
 
 
 # If the user doesn't provide a topic, generate one
@@ -327,59 +229,16 @@ def generate_betting_pool_idea(state: ResearchGraphOutput):
     return {"betting_pool_idea": betting_pool_idea}
 
 
-def search_images_for_pool(state: ResearchGraphOutput):
-    """Search for relevant images for the betting pool topic and return one random image"""
-    tavily_search = TavilySearchResults(
-        max_results=20,
-        include_images=True,
-    )
-
-    print(state)
-    betting_pool = state.get("betting_pool_idea")
-    topic = state.get("topic")
-
-    # Create an optimized image search query
-    search_prompt = f"""
-    Generate a focused image search query for this betting pool:
-    Topic: {topic}
-    Betting idea: {betting_pool['betting_pool_idea'] if betting_pool else 'No betting pool available'}
-    
-    The query should:
-    - Be 2-4 words maximum
-    - Focus on the key visual elements of the idea
-    - Be optimized for finding relevant images
-    
-    Your response should be the following JSON object and nothing else:
-    {{
-        "search_query": "" // The optimized image search query
-    }}
-    """
-
-    structured_llm = smol_llm.with_structured_output(ImageSearchQuery)
-    search_query = structured_llm.invoke(search_prompt)
-
-    try:
-        search_results = tavily_search.invoke(search_query.search_query)
-        pprint(search_results)
-        random_image = random.choice(search_results) if search_results else None
-        return {"image_results": [random_image] if random_image else []}
-    except Exception as e:
-        print(f"Error searching for images: {e}")
-        return {"image_results": []}
-
-
 betting_pool_idea_generator = StateGraph(ResearchGraphOutput)
 betting_pool_idea_generator.add_node("extract_topic", extract_topic)
 betting_pool_idea_generator.add_node("generate_topic", generate_topic)
 betting_pool_idea_generator.add_node(
     "generate_betting_pool_idea", generate_betting_pool_idea
 )
-# betting_pool_idea_generator.add_node("search_images", search_images_for_pool)
 
 betting_pool_idea_generator.add_edge(START, "extract_topic")
 betting_pool_idea_generator.add_edge("extract_topic", "generate_topic")
 betting_pool_idea_generator.add_edge("generate_topic", "generate_betting_pool_idea")
 betting_pool_idea_generator.add_edge("generate_betting_pool_idea", END)
-# betting_pool_idea_generator.add_edge("search_images", END)
 
 betting_pool_idea_generator_agent = betting_pool_idea_generator.compile()

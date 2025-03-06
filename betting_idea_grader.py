@@ -35,19 +35,6 @@ class BettingPoolIdeaGraderGraphOutput(MessagesState):
     betting_pool_idea_result: BettingPoolIdeaGraderOutput
 
 
-# perplexity_llm = ChatPerplexity(
-#     model="sonar-reasoning",
-#     temperature=0.7,
-#     api_key=os.getenv("PPLX_API_KEY")
-# )
-
-
-openai_llm = ChatOpenAI(
-    model="gpt-4o",
-    temperature=0,
-    api_key=os.getenv("OPENAI_API_KEY"),
-)
-
 tavily_search = TavilySearchResults(
     max_results=3,
     include_answer=True,
@@ -122,7 +109,7 @@ def generate_evidence_queries(state: BettingPoolIdeaGraderGraphOutput):
     """
     )
 
-    structured_llm = openai_llm.with_structured_output(EvidenceSearchQueries)
+    structured_llm = big_llm.with_structured_output(EvidenceSearchQueries)
     result = structured_llm.invoke([evidence_search_sys_msg, evidence_search_user_msg])
     print("Evidence search result:", result)
     return {
@@ -203,18 +190,6 @@ def gather_evidence(state: BettingPoolIdeaGraderGraphOutput):
     return {
         "evidence": evidence_list
     }
-
-    # Then use the Perplexity API or Tavily to run the search queries.
-    # Load the results from the searches into JSON and XML
-    # Add these results to the state, then...
-    
-    # Separate function (would call this in parallel for a chunk of articles)
-    # Ask the LLM to count the number of records that support the "Yes wins" criteria. Ask it to explain why it chose yes (but you don't have to record it, CoT)
-    # Ask the LLM to count the number of records that support the "No wins" criteria. Ask it to explain why it chose yes (but you don't have to record it, CoT)
-    # Ask the LLM to count the number of records that are "Unknown". Ask it to explain why it chose yes (but you don't have to record it, CoT)
-    # If it finds an equal number of sources, don't close
-    # If it can't find at least 2 sources to support an outcome, don't close
-    # If it find one outweighs the other, close (ideally with a tool call to close the pool on the contract
 
 def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
     """Grade the betting pool idea"""
