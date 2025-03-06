@@ -8,7 +8,9 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langchain_community.tools.tavily_search import TavilySearchResults
 from betting_pool_generator import BettingPoolGeneratorOutput
-from betting_pool_generator import smol_llm, big_llm
+from common import smol_llm
+from common import big_llm
+
 
 class EvidenceSearchQueries(BaseModel):
     evidence_search_queries: list[str]
@@ -28,6 +30,7 @@ class Evidence(BaseModel):
     search_query: str
     # supports: WinLoseConditions
 
+
 class BettingPoolIdeaGraderGraphOutput(MessagesState):
     betting_pool_idea: BettingPoolGeneratorOutput
     evidence_search_queries: list[str]
@@ -43,6 +46,7 @@ tavily_search = TavilySearchResults(
     # search_depth="advanced", # Unclear what this does
 )
 
+
 def betting_pool_grading_preamble(betting_pool: dict):
     return f"""
  You are a betting pool idea grader with expertise in data analysis and probability assessment.
@@ -57,6 +61,7 @@ def betting_pool_grading_preamble(betting_pool: dict):
     - Condition in which "yes" will lose: {betting_pool['options']['yes']['lose_condition']}
     - Condition in which "no" will win: {betting_pool['options']['no']['win_condition']}
     - Condition in which "no" will lose: {betting_pool['options']['no']['lose_condition']}"""
+
 
 def generate_evidence_queries(state: BettingPoolIdeaGraderGraphOutput):
     """Grade the betting pool idea"""
@@ -116,14 +121,15 @@ def generate_evidence_queries(state: BettingPoolIdeaGraderGraphOutput):
         "evidence_search_queries": result.evidence_search_queries,
     }
 
+
 def gather_evidence(state: BettingPoolIdeaGraderGraphOutput):
     """Gather evidence from search queries"""
     print("Gathering evidence from search queries")
-    
+
     betting_pool = state.get("betting_pool_idea")
     search_queries = state.get("evidence_search_queries")
     evidence_list = []
-    
+
     search_sys_msg = SystemMessage(
         content=f"""You are a search assistant that finds and summarizes relevant evidence.
         For the given search query, return information from reliable sources.
@@ -146,9 +152,9 @@ def gather_evidence(state: BettingPoolIdeaGraderGraphOutput):
         - Prefer recent sources from reputable outlets
         """
     )
-    
+
     structured_llm = big_llm.with_structured_output(Evidence)
-    
+
     for query in search_queries:
         search_user_msg = HumanMessage(
             content=f"""
@@ -157,7 +163,7 @@ def gather_evidence(state: BettingPoolIdeaGraderGraphOutput):
             Please find and analyze relevant evidence for this query in the context of the betting pool.
             """
         )
-        
+
         try:
             # use llm to gather evidence
             result = structured_llm.invoke([search_sys_msg, search_user_msg])
@@ -185,23 +191,23 @@ def gather_evidence(state: BettingPoolIdeaGraderGraphOutput):
         except Exception as e:
             print(f"Error processing query '{query}': {e}")
             continue
-    
+
     print(f"Evidence list: {evidence_list}")
-    return {
-        "evidence": evidence_list
-    }
+    return {"evidence": evidence_list}
+
 
 def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
     """Grade the betting pool idea"""
-    
+
     print("Grading betting pool idea")
     betting_pool = state.get("betting_pool_idea")
     print(f"betting_pool in grade_betting_pool_idea: {betting_pool}")
-    
+
     # Gather evidence first
     evidence_list = state.get("evidence")
-    
-    grading_sys_msg = SystemMessage(content=f"""
+
+    grading_sys_msg = SystemMessage(
+        content=f"""
     You are a betting pool idea grader with expertise in data analysis and probability assessment.
     
     Your task is to:
@@ -255,9 +261,11 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
             "official_results_available": true/false
         }}
     }}
-    """)
+    """
+    )
 
-    grading_user_msg = HumanMessage(content=f"""
+    grading_user_msg = HumanMessage(
+        content=f"""
     EVIDENCE PROVIDED:
     {evidence_list}
 
@@ -277,7 +285,8 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
     CLOSURE DATETIME: {datetime.fromtimestamp(betting_pool['closure_datetime']).strftime('%Y-%m-%d %H:%M:%S')}
 
     CURRENT DATETIME: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-    """)
+    """
+    )
 
     # TODO Later we'll want to use Claude sonnet here, but not until after we reduce costs
     structured_llm = big_llm.with_structured_output(BettingPoolIdeaGraderOutput)
@@ -298,21 +307,22 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
         result_code = 4  # is ERROR
 
     return {
-        'betting_pool_idea_result': {
-            'result': result.result,
-            'result_code': result_code,
-            'probabilities': result.probabilities,
-            'sources': result.sources,
-            'explanation': result.explanation,
-            'time_period_analysis': result.time_period_analysis
+        "betting_pool_idea_result": {
+            "result": result.result,
+            "result_code": result_code,
+            "probabilities": result.probabilities,
+            "sources": result.sources,
+            "explanation": result.explanation,
+            "time_period_analysis": result.time_period_analysis,
         }
     }
 
 
-
 betting_pool_idea_grader = StateGraph(BettingPoolIdeaGraderGraphOutput)
 
-betting_pool_idea_grader.add_node("generate_evidence_queries", generate_evidence_queries)
+betting_pool_idea_grader.add_node(
+    "generate_evidence_queries", generate_evidence_queries
+)
 betting_pool_idea_grader.add_node("gather_evidence", gather_evidence)
 betting_pool_idea_grader.add_node("grade_betting_pool_idea", grade_betting_pool_idea)
 

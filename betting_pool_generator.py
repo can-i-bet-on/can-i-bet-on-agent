@@ -6,10 +6,9 @@ import json
 
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from langgraph.graph import END, START, MessagesState, StateGraph
-import os
+from common import big_llm, smol_llm
 from db.betting_pool_db import BettingPoolDB
 from langchain_community.tools.tavily_search import TavilySearchResults
 import random
@@ -42,34 +41,9 @@ class BettingPoolGeneratorTopicOutput(BaseModel):
     topic: str
 
 
-class NewsSearchQuery(BaseModel):
-    search_query: str
-
-
 class ImageSearchQuery(BaseModel):
     search_query: str
 
-
-smol_llm = ChatOpenAI(
-    model="gpt-4o-mini",
-    temperature=0.2,
-    api_key=os.getenv("OPENAI_API_KEY"),
-)
-
-big_llm = ChatOpenAI(
-    # base_url="https://openrouter.ai/api/v1",
-    model="gpt-4o",
-    # model="perplexity/sonar-medium-online",
-    temperature=0.2,
-    api_key=os.getenv("OPENAI_API_KEY"),
-)
-
-perplexity_llm = ChatOpenAI(
-    base_url="https://api.perplexity.ai",
-    model="sonar-pro",
-    temperature=0,
-    api_key=os.getenv("PPLX_API_KEY"),
-)
 
 def extract_topic(state: ResearchGraphOutput):
     """Extract the topic from the state"""

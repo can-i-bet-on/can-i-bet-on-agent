@@ -1,4 +1,9 @@
-from betting_pool_generator import NewsSearchQuery, smol_llm
+from pydantic import BaseModel
+from common import smol_llm
+
+
+class NewsSearchQuery(BaseModel):
+    search_query: str
 
 
 def get_news_search_query(topic: str) -> str:
