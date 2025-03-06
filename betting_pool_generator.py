@@ -30,7 +30,6 @@ class BettingPoolGeneratorOutput(BaseModel):
 
 
 class ResearchGraphOutput(MessagesState):
-    prefer_fast_response: bool
     topic: str
     search_results: list[str]
     news_results: list[str]
@@ -51,19 +50,24 @@ class ImageSearchQuery(BaseModel):
 
 
 smol_llm = ChatOpenAI(
-    # base_url="https://openrouter.ai/api/v1",
-    model="gpt-4o",
-    # model="perplexity/sonar-medium-online",
-    temperature=0.3,
+    model="gpt-4o-mini",
+    temperature=0.2,
     api_key=os.getenv("OPENAI_API_KEY"),
 )
 
-big_llm =  ChatOpenAI(
+big_llm = ChatOpenAI(
     # base_url="https://openrouter.ai/api/v1",
     model="gpt-4o",
     # model="perplexity/sonar-medium-online",
-    temperature=0.3,
+    temperature=0.2,
     api_key=os.getenv("OPENAI_API_KEY"),
+)
+
+perplexity_llm = ChatOpenAI(
+    base_url="https://api.perplexity.ai",
+    model="sonar-pro",
+    temperature=0,
+    api_key=os.getenv("PPLX_API_KEY"),
 )
 
 # llm = ChatAnthropic(
@@ -111,15 +115,6 @@ def generate_betting_pool_idea_from_seed(state: ResearchGraphOutput):
     4. Finally generate instructions fo a future agent to figure out which option won. Focus on things you can confirm digitally and try to avoid relying on a human to judge when possible.
     """
 
-
-def extract_context_for_betting_pool_idea(state: ResearchGraphOutput):
-    # TODO Write this. High level idea is to get info that can be passed into a tool call.
-    # You have been given this context by the user, your goal is to extract URLs from the context to feed into a tool call.
-    # You have been given this context by the user, your goal is to analyze the likely origin of the context so you can scrape it in a future tool call.(I want this to identify if the user is linking to a post on X or Telegram initially)
-    #
-    # Then taking that context, if there were URLs, we'd use crawl4ai to download the page and search for betting pool ideas
-    # If there were X or Telegram posts, we'd go to the X or Telegram API to get the post content + surrounding messages
-    return {}
 
 
 def extract_topic(state: ResearchGraphOutput):
@@ -208,9 +203,6 @@ def get_news_for_topic(topic: str) -> list[str]:
         return []
 
 
-# Alright, seems to be functional for a PoC. This is using gpt-4o for speed, but for the idea where we'd have the AI pre-grenerate a bunch of betting pool ideas and have
-
-
 # If the user doesn't provide a topic, generate one
 def generate_topic(state: ResearchGraphOutput):
     """Generate a topic for the betting pool if user doesn't provide one"""
@@ -261,22 +253,19 @@ def generate_topic(state: ResearchGraphOutput):
 
 def generate_betting_pool_idea(state: ResearchGraphOutput):
     """Generate a betting pool"""
-    print("OpenAI API key:", os.getenv("OPENAI_API_KEY"))
-    print("Generating betting pool idea", state.get("prefer_fast_response"))
+    print("Generating betting pool idea")
     betting_pool_db = BettingPoolDB()
 
     # Choose LLM based on preference
-    selected_llm = smol_llm if state.get("prefer_fast_response") else big_llm
 
     # For fast responses, fetch news articles first
     news_context = ""
-    if state.get("prefer_fast_response"):
-        news_articles = get_news_for_topic(state.get("topic"))
-        if news_articles:
-            news_context = (
-                "\n\nHere are some recent news articles about this topic:\n"
-                + "\n\n".join(news_articles)
-            )
+    news_articles = get_news_for_topic(state.get("topic"))
+    if news_articles:
+        news_context = (
+            "\n\nHere are some recent news articles about this topic:\n"
+            + "\n\n".join(news_articles)
+        )
 
     prompt = f"""
   
@@ -321,16 +310,13 @@ def generate_betting_pool_idea(state: ResearchGraphOutput):
     # Use the existing BettingPoolGeneratorOutput Pydantic model
     # structured_llm = selected_llm.with_structured_output(BettingPoolGeneratorOutput)
     # betting_pool_idea = structured_llm.invoke([prompt] + state["messages"])
-    betting_pool_idea = selected_llm.invoke([prompt] + state["messages"])
+    betting_pool_idea = big_llm.invoke([prompt] + state["messages"])
     print("Betting pool idea:", betting_pool_idea)
-    print("Betting pool idea type:", type(betting_pool_idea))
-    print("Betting pool idea content:", betting_pool_idea.content)
     betting_pool_idea = json.loads(
         betting_pool_idea.content.replace("```json", "").replace(
             "```", ""
         )  # TODO I can't seem to convince the LLM to not include markdown enclosures, which breaks structured_output
     )
-    print("Betting pool idea2:", betting_pool_idea)
 
     # Store the new betting pool idea in the database to avoid repeating the same idea multiple time when invoked
     try:
@@ -371,49 +357,6 @@ def search_images_for_pool(state: ResearchGraphOutput):
 
     structured_llm = smol_llm.with_structured_output(ImageSearchQuery)
     search_query = structured_llm.invoke(search_prompt)
-
-    try:
-        search_results = tavily_search.invoke(search_query.search_query)
-        pprint(search_results)
-        random_image = random.choice(search_results) if search_results else None
-        return {"image_results": [random_image] if random_image else []}
-    except Exception as e:
-        print(f"Error searching for images: {e}")
-        return {"image_results": []}
-
-
-def search_images_for_pool(state: ResearchGraphOutput):
-    """Search for relevant images for the betting pool topic and return one random image"""
-    tavily_search = TavilySearchResults(
-        max_results=20,
-        include_images=True,
-    )
-
-    print(state)
-    betting_pool = state.get("betting_pool_idea")
-    topic = state.get("topic")
-
-    # Create an optimized image search query
-    search_prompt = f"""
-    Generate a focused image search query for this betting pool:
-    Topic: {topic}
-    Betting idea: {betting_pool['betting_pool_idea'] if betting_pool else 'No betting pool available'}
-    
-    The query should:
-    - Be 2-4 words maximum
-    - Focus on the key visual elements of the idea
-    - Be optimized for finding relevant images
-    
-    Your response should be the following JSON object and nothing else:
-    {{
-        "search_query": "" // The optimized image search query
-    }}
-    """
-
-    structured_llm = smol_llm.with_structured_output(ImageSearchQuery)
-    search_query = structured_llm.invoke(search_prompt)
-    
-    
 
     try:
         search_results = tavily_search.invoke(search_query.search_query)

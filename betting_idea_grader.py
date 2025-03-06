@@ -7,15 +7,14 @@ from langchain_community.chat_models import ChatPerplexity
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langchain_community.tools.tavily_search import TavilySearchResults
-
 from betting_pool_generator import BettingPoolGeneratorOutput
+from betting_pool_generator import smol_llm, big_llm
 
 class EvidenceSearchQueries(BaseModel):
     evidence_search_queries: list[str]
 
 
 class BettingPoolIdeaGraderOutput(BaseModel):
-    
     result: str  # Required
     probabilities: Optional[dict[str, float]] = None
     sources: list[str]
@@ -42,15 +41,6 @@ class BettingPoolIdeaGraderGraphOutput(MessagesState):
 #     api_key=os.getenv("PPLX_API_KEY")
 # )
 
-perplexity_llm = ChatOpenAI(
-    base_url="https://api.perplexity.ai",
-    model="sonar-pro",
-    temperature=0,
-    api_key=os.getenv("PPLX_API_KEY"),
-    # headers={
-    #     "Authorization": f"Bearer {os.getenv('PPLX_API_KEY')}"
-    # }
-)
 
 openai_llm = ChatOpenAI(
     model="gpt-4o",
@@ -58,7 +48,13 @@ openai_llm = ChatOpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
 )
 
-tavily_search = TavilySearchResults(max_results=2)
+tavily_search = TavilySearchResults(
+    max_results=3,
+    include_answer=True,
+    include_raw_content=True,
+    include_images=False,
+    # search_depth="advanced", # Unclear what this does
+)
 
 def betting_pool_grading_preamble(betting_pool: dict):
     return f"""
@@ -164,7 +160,7 @@ def gather_evidence(state: BettingPoolIdeaGraderGraphOutput):
         """
     )
     
-    structured_llm = perplexity_llm.with_structured_output(Evidence)
+    structured_llm = big_llm.with_structured_output(Evidence)
     
     for query in search_queries:
         search_user_msg = HumanMessage(
@@ -247,6 +243,7 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
       * If official results aren't available yet, return "not resolved yet"
     - If the time period hasn't passed yet:
       * Always return "not resolved yet"
+      * Analyze the time period to determine the next date and time to check for official results
     
     DECISION GUIDELINES:
     - Return "option A" or "option B" if:
@@ -279,6 +276,7 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
         "time_period_analysis": {{ 
             "period_mentioned": "", // e.g., "Q1 2024"
             "period_has_passed": true/false,
+            "next_check_date_time": "YYYY-MM-DD HH:MM:SS", // the next date and time to check for official results
             "official_results_available": true/false
         }}
     }}
@@ -306,13 +304,15 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
     CURRENT DATETIME: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
     """)
 
-    structured_llm = perplexity_llm.with_structured_output(BettingPoolIdeaGraderOutput)
+    # TODO Later we'll want to use Claude sonnet here, but not until after we reduce costs
+    structured_llm = big_llm.with_structured_output(BettingPoolIdeaGraderOutput)
     result = structured_llm.invoke([grading_sys_msg, grading_user_msg])
     print("Grading result:", result)
 
     # Determine the result code based on the grading output
     if result.result == "not resolved yet":
         result_code = 0  # NOT READY TO GRADE
+        # Then set the next check date and time
     elif result.result == "option A":
         result_code = 1  # is option A
     elif result.result == "option B":
@@ -334,100 +334,6 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
     }
 
 
-def grade_betting_pool_idea2(betting_pool):
-    """Grade the betting pool idea"""
-    
-    print("Grading betting pool idea")
-    
-    print(f"betting_pool in grade_betting_pool_idea: {betting_pool}")
-    
-    grading_sys_msg = SystemMessage(content=f"""
-    You are a betting pool idea grader with expertise in data analysis and probability assessment.
-    
-    Your task is to:
-    1. Understand the EXACT question and its closure criteria, closure instructions, and closure date
-    2. Assign probabilities that reflect your confidence in each option
-    3. Always choose the highest probability option as the result
-    
-    IMPORTANT: 
-    - CAREFULLY COMPARE THE EXACT DATE AND TIME:
-      * Past events: closure datetime is EARLIER than current datetime (compare both date AND time components)
-      * Future events: closure datetime is LATER than current datetime (compare both date AND time components)
-    - For past events (where closure time has passed), if you're not 100% certain of the outcome, distribute probabilities based on your confidence
-    - For past events, it should NEVER return "not resolved yet" as a result
-    - For future events (where closure time has not yet passed), return "not resolved yet" as a result and probabilities of 0 for all options and an empty list of sources
-    - For future events that cannot be determined yet, return "not resolved yet" as a result and probabilities of 0 for all options and an empty list of sources
-    - The result must be the option with the highest probability
-    - All probabilities must sum to exactly 1.0 for past events and 0 for future events
-    - You MUST include ALL sources used to reach your conclusion in the sources list
-    - Prefer sources that:
-      * Are from reputable news organizations or official websites
-      * Directly address the question
-      * Have recent updates relevant to the closure date
-      * Provide verifiable data or official statements
-
-    Grading guidelines:
-    - High probability (>0.6): Strong evidence for this option
-    - Medium probability (0.3-0.6): Some evidence or reasonable likelihood
-    - Low probability (<0.3): Less likely but still possible
-    - Only assign 1.0 if you have absolute certainty of the outcome
-    - When sources disagree, distribute probabilities to reflect the relative strength and reliability of each source
-    - If neither option A nor option B is the result, return "push" as the result.
-
-    Your response must be ONLY a JSON object. Do not include any explanatory text, markdown formatting, or code blocks:
-    {{
-        "result": "", // the option with highest probability or "push"
-        "probabilities": {{
-            // Assign each option a probability between 0.01 and 1.0
-            // Probabilities MUST sum to exactly 1.0 for past events and 0 for future events
-            // Use the exact option names as provided
-        }},
-        "sources": [
-            // List the URLs of sources that directly address the question
-            // Only include sources that provided relevant information
-        ],
-        "explanation": "", // Detailed explanation of your reasoning, citing specific evidence from sources
-    }}
-    """)
-
-    grading_user_msg = HumanMessage(content=f"""
-    BETTING POOL DETAILS:
-    Question: {betting_pool['betting_pool_idea']}
-    Options: {betting_pool['options']}
-    
-    CLOSURE SUMMARY:
-    {betting_pool['closure_summary']}
-    
-    CLOSURE INSTRUCTIONS:
-    {betting_pool['closure_instructions']}
-    
-    CLOSURE DATETIME: {betting_pool['closure_datetime']}
-
-    CURRENT DATETIME: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-    """)
-
-    structured_llm = perplexity_llm.with_structured_output(BettingPoolIdeaGraderOutput)
-    result = structured_llm.invoke([grading_sys_msg, grading_user_msg])
-    print("Grading result:", result)
-
-    # Determine the result based on the grading output
-    if result.result == "not resolved yet":
-        return 0  # NOT READY TO GRADE
-    elif result.result == "option A":
-        return 1  # is option A
-    elif result.result == "option B":
-        return 2  # is option B
-    elif result.result == "push":
-        return 3  # is DRAW
-    else:
-        return 4  # is ERROR
-
-    return {
-        "result": result.result,
-        "probabilities": result.probabilities,
-        "sources": result.sources,
-        "explanation": result.explanation
-    }
 
 betting_pool_idea_grader = StateGraph(BettingPoolIdeaGraderGraphOutput)
 
