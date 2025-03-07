@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from common import smol_llm
-
+import os
+import requests
 
 class NewsSearchQuery(BaseModel):
     search_query: str

@@ -17,7 +17,7 @@ FRONTEND_URL_PREFIX = os.getenv("FRONTEND_URL_PREFIX")
 LISTENER_TWITTER_HANDLE = os.getenv("LISTENER_TWITTER_HANDLE")
 POLLING_INTERVAL = int(os.getenv("POLLING_INTERVAL", 30))
 POLLING_WINDOW = int(os.getenv("POLLING_WINDOW", 3600))
-
+GENERATE_BETTING_POOL_COMMAND = os.getenv("GENERATE_BETTING_POOL_COMMAND", "@CanIBetOn")
 # After loading environment variables, add validation
 if not all([TWITTERAPI_API_KEY, LISTENER_TWITTER_HANDLE, FRONTEND_URL_PREFIX]):
 		raise ValueError(
@@ -79,8 +79,9 @@ async def propose_bet(tweet_data: Tweet):
 
 		print(f"Proposing bet for new tweet from @{tweet_data.author.user_name}: {tweet_data.text}", f"replying to thread: {"\n----------\n".join(thread_text)}" if len(thread_text) > 0 else "")
 		try:
+				tweet_text = tweet_data.text.replace(f'{GENERATE_BETTING_POOL_COMMAND}', '').strip()
 				# Call the Langraph agent
-				langgraph_agent_response = await call_langgraph_agent(betting_pool_idea_generator_agent, tweet_data.text, "\n----------\n".join(thread_text))
+				langgraph_agent_response = await call_langgraph_agent(betting_pool_idea_generator_agent, tweet_text, "\n----------\n".join(thread_text))
 				print(f"langgraph_agent_response: {langgraph_agent_response}")
 								# Use the new function to create pool_data
 				pool_data = create_pool_data(langgraph_agent_response, tweet_data.author.user_name, tweet_data.author.author_id)

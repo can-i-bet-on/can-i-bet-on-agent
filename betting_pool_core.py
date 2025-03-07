@@ -22,8 +22,12 @@ SUBGRAPH_URL = os.getenv("SUBGRAPH_URL")
 # Initialize Web3
 w3 = Web3(Web3.HTTPProvider(WEB3_NODE_URL))
 
+# Get the directory where the current script is located
+script_dir = os.path.dirname(os.path.abspath(__file__))
+abi_path = os.path.join(script_dir, "BettingPools.json")
+
 # Load contract ABI from JSON file
-with open("BettingPools.json", "r") as abi_file:
+with open(abi_path, "r") as abi_file:
     abi_data = json.load(abi_file)
     CONTRACT_ABI = abi_data["abi"]
 
@@ -45,12 +49,14 @@ async def call_langgraph_agent(agent, message_text=None, original_text=None):
         message["content"] += f"\n<text>{message_text}</text>"
 
     try:
+        print(f"Calling Langgraph agent with message in betting_pool_core: {message}")
         agent_response = agent.invoke(
             {
                 "messages": [message],
                 "prefer_fast_response": True,
             }
         )
+        print(f"Agent response in betting_pool_core: {agent_response}")
         return agent_response
     except Exception as e:
         raise Exception(f"Error fetching data from Langraph: {str(e)}")
