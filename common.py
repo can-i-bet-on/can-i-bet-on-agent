@@ -1,8 +1,8 @@
 from langchain_openai import ChatOpenAI
-
-
 import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
 big_llm = ChatOpenAI(
     # base_url="https://openrouter.ai/api/v1",
