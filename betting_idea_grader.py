@@ -1,7 +1,7 @@
 from datetime import datetime
 import os
 from typing import Literal, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_community.chat_models import ChatPerplexity
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -21,7 +21,7 @@ class BettingPoolIdeaGraderOutput(BaseModel):
     probabilities: Optional[dict[str, float]] = None
     sources: list[str]
     explanation: str
-    time_period_analysis: dict
+    time_period_analysis: Optional[dict] = Field(default_factory=dict)
 
 
 class Evidence(BaseModel):
@@ -257,7 +257,6 @@ def grade_betting_pool_idea(state: BettingPoolIdeaGraderGraphOutput):
         "time_period_analysis": {{ 
             "period_mentioned": "", // e.g., "Q1 2024"
             "period_has_passed": true/false,
-            "next_check_date_time": "YYYY-MM-DD HH:MM:SS", // the next date and time to check for official results
             "official_results_available": true/false
         }}
     }}

@@ -107,9 +107,10 @@ def create_pool(pool_data):
     except Exception as e:
         raise Exception(f"Error creating pool: {str(e)}")
 
+
 def generate_market_creation_tweet_content(pool_id, pool_data, frontend_url_prefix):
     if pool_id is not None:
-                # Convert to hex, remove '0x' prefix, ensure even length with zero padding, then add '0x' back
+        # Convert to hex, remove '0x' prefix, ensure even length with zero padding, then add '0x' back
         # hex_without_prefix = hex(pool_id)[2:]  # Remove '0x' prefix
         # if len(hex_without_prefix) % 2 != 0:
         #     hex_without_prefix = '0' + hex_without_prefix
@@ -340,6 +341,9 @@ def store_pool_grade(pool_id_str, grade):
 
 
 def call_grade_pool_contract(pool_id, grade_result):
+    print(
+        f"Calling grade pool contract with pool_id: {pool_id} and grade_result: {grade_result}"
+    )
     try:
         # Build the transaction
         tx = CONTRACT.functions.gradeBet(pool_id, grade_result).build_transaction(
@@ -439,15 +443,16 @@ def fetch_bets_for_pool(pool_id):
             print(f"Response content: {response.content}")
         return []
 
-## the following functions are for bot auto-betting 
+
+## the following functions are for bot auto-betting
 ## commented out for now as we don't need it
 
 # def fetch_pending_pools_with_unbalanced_liquidity():
 #     """Fetches pending betting pools that have liquidity on only one side"""
-    
+
 #     try:
 #         pools = fetch_pending_pools()
-        
+
 #         # Filter for pools with liquidity on only one side
 #         unbalanced_pools = []
 #         for pool in pools:
@@ -457,7 +462,7 @@ def fetch_bets_for_pool(pool_id):
 
 #         if unbalanced_pools:
 #             unbalanced_pools = sorted(unbalanced_pools, key=lambda x: -1 * int(x['totalBets']))
-        
+
 #         return unbalanced_pools
 #     except Exception as e:
 #         print(f"Error fetching pending pools with unbalanced liquidity: {e}")
@@ -467,25 +472,25 @@ def fetch_bets_for_pool(pool_id):
 # def generate_wallet_from_private_key(private_key):
 #     """
 #     Generates a wallet address from a private key.
-    
+
 #     Args:
 #         private_key (str): The private key with or without '0x' prefix
-        
+
 #     Returns:
-#         tuple: (account, wallet_address) where account is the Account object and 
+#         tuple: (account, wallet_address) where account is the Account object and
 #                wallet_address is the public address string
 #     """
 #     try:
 #         # Add 0x prefix if not present
 #         if not private_key.startswith('0x'):
 #             private_key = '0x' + private_key
-            
+
 #         # Get the account from the private key
 #         account = Account.from_key(private_key)
-        
+
 #         # Get the wallet address
 #         wallet_address = account.address
-        
+
 #         return wallet_address
 #     except Exception as e:
 #         raise Exception(f"Error generating wallet from private key: {str(e)}")
@@ -497,7 +502,7 @@ def fetch_bets_for_pool(pool_id):
 #     try:
 #         # Get base URL from environment variable, with fallback
 #         url = os.getenv('WALLET_SIGNING_PROPS_URL')
-        
+
 #         payload = {
 #             "chainId": chain_id,
 #             "poolId": pool_id,
@@ -505,22 +510,22 @@ def fetch_bets_for_pool(pool_id):
 #             "amount": amount,
 #             "userWalletAddress": user_wallet_address
 #         }
-        
+
 #         headers = {
 #             'Content-Type': 'application/json'
 #         }
-        
+
 #         print(f"Getting signing parameters: {payload}")
 #         response = requests.post(url, json=payload, headers=headers)
 #         response.raise_for_status()
-        
+
 #         signing_data = response.json()
 #         print("Received signing parameters:", signing_data)
 #         return signing_data
-        
+
 #     except requests.exceptions.RequestException as e:
 #         raise Exception(f"Failed to get signing props: {str(e)}")
-    
+
 
 # from web3 import Web3
 # from eth_account.messages import encode_typed_data
@@ -538,7 +543,7 @@ def fetch_bets_for_pool(pool_id):
 # ):
 #     """
 #     Signs a USDC permit using EIP-712
-    
+
 #     Args:
 #         private_key: The private key to sign with
 #         chain_id: The chain ID
@@ -547,17 +552,17 @@ def fetch_bets_for_pool(pool_id):
 #         amount: The amount to approve
 #         usdc_nonce: The current nonce for the user in the USDC contract
 #         usdc_name: The name of the USDC token
-        
+
 #     Returns:
 #         A tuple containing the signature components and deadline
 #     """
 #     # Create account from private key
 #     account = Account.from_key(private_key)
 #     wallet_address = account.address
-    
+
 #     # Set deadline to 1 hour from now
 #     usdc_permit_deadline = int(time.time()) + 3600
-    
+
 #     # Define the domain separator
 #     domain_data = {
 #         "name": usdc_name,
@@ -565,7 +570,7 @@ def fetch_bets_for_pool(pool_id):
 #         "chainId": chain_id,
 #         "verifyingContract": usdc_address
 #     }
-    
+
 #     # Define the types for EIP-2612 permit
 #     types = {
 #         "Permit": [
@@ -576,7 +581,7 @@ def fetch_bets_for_pool(pool_id):
 #             {"name": "deadline", "type": "uint256"}
 #         ]
 #     }
-    
+
 #     # Define the message to sign
 #     message = {
 #         "owner": wallet_address,
@@ -585,13 +590,13 @@ def fetch_bets_for_pool(pool_id):
 #         "nonce": usdc_nonce,
 #         "deadline": usdc_permit_deadline
 #     }
-    
+
 #     print("Permit data to sign:", {
 #         "domain": domain_data,
 #         "types": types,
 #         "message": message
 #     })
-    
+
 #     # Create the structured data for signing
 #     structured_data = {
 #         "types": types,
@@ -599,18 +604,18 @@ def fetch_bets_for_pool(pool_id):
 #         "primaryType": "Permit",
 #         "message": message
 #     }
-    
+
 #     # Encode and sign the data
 #     encoded_data = encode_typed_data(structured_data)
 #     signed_message = account.sign_message(encoded_data)
-    
+
 #     # Extract signature components
 #     signature = {
 #         "v": signed_message.v,
 #         "r": signed_message.r.hex(),
 #         "s": signed_message.s.hex()
 #     }
-    
+
 #     return {
 #         "signature": signature,
 #         "deadline": usdc_permit_deadline

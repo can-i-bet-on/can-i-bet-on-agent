@@ -53,6 +53,9 @@ def grade_pending_pools():
             print(f"pool_close_at: {pool_close_at}, time.time(): {time.time()}")
             if pool_close_at <= time.time():
                 retry_count = 0
+                if pool["id"] != "0x13":
+                    logging.info(f"Skipping pool {pool['id']}")
+                    continue
                 while True:
                     try:
 
@@ -85,6 +88,7 @@ def grade_pending_pools():
                                 logging.info(f"Stored grade for pool {pool_id_hex}")
 
                                 # call the contract to update the pool
+                                print(pool)
                                 pool_id_int = int(pool_id_hex, 16)
                                 call_grade_pool_contract(
                                     pool_id_int, grade_result["result_code"]
