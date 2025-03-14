@@ -118,6 +118,8 @@ def generate_topic(state: ResearchGraphOutput):
         {{
             "topic": "" // The topic for the betting pool
         }}
+        
+        Remember that you must never generate a betting pool idea for a past event. Today's date and time is {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}. Only generate ideas for future events past this date and time.
     """
     )
 
@@ -158,7 +160,7 @@ def generate_betting_pool_idea(state: ResearchGraphOutput):
     - If the user provided a specific message, prioritize and focus on creating a betting pool that directly addresses their query. Use the news context as reference, but don't feel constrained by it in this case.
     - Your response must be for a pool that can only be resolved in the future. Do not create a pool based on past events.
     - Avoid ambiguity in the betting pool idea. For instance, don't suggest "will a major stock reach 200% in...", instead provide a specific stock to see if it will reach a certain price.
-    - Do not generate ideas for known outcomes or for things in the past. Note that the current date is {datetime.now().strftime("%Y-%m-%d")}.
+    - Do not generate ideas for known outcomes or for things in the past. Note that the current date and time is {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}.
     - For time-sensitive bets (like weather predictions), use dates that are very close to the current date.
     - You must provide exactly 2 mutually exclusive options. Examples:
       * "Above $500" vs "Below or equal to $500"
@@ -181,6 +183,8 @@ def generate_betting_pool_idea(state: ResearchGraphOutput):
      }}
    
    Response must be a valid JSON object with no additional formatting, no markdown, and no code fences.
+
+   Remember that you must never generate a betting pool idea for a past event. Today's date and time is {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}. Only generate ideas for future events past this date and time.
     """
 
     # Use the existing BettingPoolGeneratorOutput Pydantic model

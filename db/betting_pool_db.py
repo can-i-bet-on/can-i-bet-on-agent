@@ -35,7 +35,7 @@ class BettingPoolDB:
                 (topic, betting_pool_json),
             )
 
-    def get_recent_pools(self, limit: int = 5) -> List[tuple]:
+    def get_recent_pools(self, limit: int = 10) -> List[tuple]:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
                 "SELECT topic, betting_pool_idea FROM betting_pools ORDER BY created_at DESC LIMIT ?",
