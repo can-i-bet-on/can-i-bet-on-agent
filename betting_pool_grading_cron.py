@@ -47,26 +47,23 @@ def grade_pending_pools():
         graded_pools = {}
         # Process each pool
         for pool in pending_pools:
-            pool_id_hex = pool["id"]
             pool_close_at = int(pool["betsCloseAt"])
 
             print(f"pool_close_at: {pool_close_at}, time.time(): {time.time()}")
             if pool_close_at <= time.time():
                 retry_count = 0
-                if pool["id"] != "0x13":
-                    logging.info(f"Skipping pool {pool['id']}")
-                    continue
+                pool_id = pool["id"]
                 while True:
                     try:
 
-                        logging.info(f"Processing pool {pool['id']}")
+                        logging.info(f"Processing pool {pool_id}")
 
                         # Grade the pool
                         grade_result = grade_pool_with_langgraph_agent(
                             betting_pool_idea_grader_agent, pool
                         )
                         logging.info(
-                            f"Pool {pool_id_hex} graded with result: {grade_result}"
+                            f"Pool {pool_id} graded with result: {grade_result}"
                         )
 
                         # Set pool data to grade_result for processing
@@ -76,40 +73,36 @@ def grade_pending_pools():
                         # grade_result['result_code'] = 1
 
                         # Store the grade in Redis
-                        if grade_result["result_code"] not in [4]:  # 4 = "error"
+                        if grade_result["result_code"] != 4:  # 4 = "error"
                             if (
                                 grade_result["result_code"] == 0
                             ):  # 0 = "not yet resolved"
-                                logging.info(f"Pool {pool_id_hex} is not yet resolved")
+                                logging.info(f"Pool {pool_id} is not yet resolved")
                             else:
-                                store_pool_grade(
-                                    pool_id_hex, grade_result["result_code"]
-                                )
-                                logging.info(f"Stored grade for pool {pool_id_hex}")
-
                                 # call the contract to update the pool
-                                print(pool)
-                                pool_id_int = int(pool_id_hex, 16)
+                                print(f"Pool {pool_id} is resolved, updating pool {pool_id} with result {grade_result['result_code']}")
                                 call_grade_pool_contract(
-                                    pool_id_int, grade_result["result_code"]
+                                    # pool_id is "#" (Ex: "3"). Although technically a bigint in contract, we're not realistically going to hit the cap of int32, so cast to int here.
+                                    int(pool_id), grade_result["result_code"]
                                 )
-                                graded_pools[pool_id_int] = grade_result
+                                graded_pools[pool_id] = grade_result
                             break
                         else:
+                            # TODO: Print the reason here
                             logging.error(
-                                f"Error grading pool {pool_id_hex}. Trying again..."
+                                f"Error grading pool {pool_id}. Trying again..."
                             )
                             retry_count += 1
 
                     except Exception as e:
                         logging.error(
-                            f"Error processing pool {pool_id_hex}: {str(e)}. Trying again..."
+                            f"Error processing pool {pool_id}: {str(e)}. Trying again..."
                         )
                         retry_count += 1
                     finally:
                         if retry_count > 2:
                             logging.error(
-                                f"Error processing pool {pool_id_hex}: {str(e)}. Giving up."
+                                f"Error processing pool {pool_id}: {str(e)}. Giving up."
                             )
                             break
 
