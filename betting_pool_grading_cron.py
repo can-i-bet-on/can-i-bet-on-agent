@@ -40,16 +40,21 @@ def grade_pending_pools():
         logging.info(f"Found {len(pending_pools)} pending pools")
 
         # for testing
+        # print(f"All pending_pools:")
+        # for pool in pending_pools:
+        #     print(f"pool: {pool}")
+
         # pending_pools = [pending_pools[0]]
-        # pending_pools = [pool for pool in pending_pools if pool['id'] == '0x24']
-        print(f"pending_pools: {pending_pools}")
+        # pending_pools = [pool for pool in pending_pools if pool['id'] == '7']
+
+        logging.info(f"pending_pools: {pending_pools}")
 
         graded_pools = {}
         # Process each pool
         for pool in pending_pools:
             pool_close_at = int(pool["betsCloseAt"])
 
-            print(f"pool_close_at: {pool_close_at}, time.time(): {time.time()}")
+            logging.info(f"pool_close_at: {pool_close_at}, time.time(): {time.time()}")
             if pool_close_at <= time.time():
                 retry_count = 0
                 pool_id = pool["id"]

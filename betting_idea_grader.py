@@ -39,7 +39,7 @@ class BettingPoolIdeaGraderGraphOutput(MessagesState):
 
 
 tavily_search = TavilySearchResults(
-    max_results=3,
+    max_results=2,
     include_answer=True,
     include_raw_content=True,
     include_images=False,
@@ -166,10 +166,10 @@ def gather_evidence(state: BettingPoolIdeaGraderGraphOutput):
 
         try:
             # use llm to gather evidence
-            result = structured_llm.invoke([search_sys_msg, search_user_msg])
-            if not result.search_query:
-                result.search_query = query
-            evidence_list.append(result)
+            # result = structured_llm.invoke([search_sys_msg, search_user_msg])
+            # if not result.search_query:
+            #     result.search_query = query
+            # evidence_list.append(result)
 
             # use tavily to gather evidence
             search_docs = tavily_search.invoke(query)
